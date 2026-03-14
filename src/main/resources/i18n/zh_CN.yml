@@ -1,0 +1,90 @@
+dummy:
+  bootstrap:
+    enabled: "Dummy 已启用"
+    disabled: "Dummy 已停用"
+  command:
+    usage:
+      root: "/dummy <spawn|remove|list|tp|swap|skin|inv|exp|config|action>"
+      remove: "用法: /dummy remove <dummy>"
+      tp: "用法: /dummy tp <dummy> <player|x y z>"
+      swap: "用法: /dummy swap <dummy> <player>"
+      skin: "用法: /dummy skin <dummy> [player]"
+      inv: "用法: /dummy inv <dummy>"
+      exp-transfer: "用法: /dummy exp <dummy> transfer"
+      config: "用法: /dummy config <dummy>"
+      action: "用法: /dummy action <dummy> <action> [args...]"
+      action-look: "用法: /dummy action <dummy> look <yaw> <pitch>"
+      action-target: "用法: /dummy action <dummy> <attack|look_at_entity|ride> <target>"
+      action-hold-item: "用法: /dummy action <dummy> hold_item <material> [amount]"
+      action-move: "用法: /dummy action <dummy> move <x> <y> <z> [yaw] [pitch]"
+      action-dig: "用法: /dummy action <dummy> dig <x> <y> <z>"
+      action-chat: "用法: /dummy action <dummy> send_chat <message...>"
+      action-command: "用法: /dummy action <dummy> execute_command <command...>"
+    error:
+      player-only: "只有玩家可以执行此操作。"
+      unknown-subcommand: "未知子命令: {subcommand}"
+      console-target-required: "控制台必须指定玩家目标。"
+  permission:
+    denied: "你没有权限执行此操作。"
+  spawn:
+    success: "假人已创建：{name} ({id})"
+  remove:
+    success: "假人已移除。"
+  list:
+    empty: "没有找到假人。"
+    header: "假人列表："
+    entry: "- {name} / {id}"
+  teleport:
+    success: "假人已传送。"
+  swap:
+    success: "已与玩家交换位置：{player}"
+  skin:
+    success: "皮肤更新已提交：{player}"
+  inventory:
+    summary: "背包槽位条目数：{count}"
+  exp:
+    transfer:
+      success: "经验已转移：{amount}"
+      empty: "没有可转移经验。"
+  error:
+    player-not-found: "未找到玩家：{player}"
+    dummy-not-found: "未找到假人：{dummy}"
+    world-not-found: "未找到世界：{world}"
+  action:
+    unsupported: "暂不支持该动作。"
+    invalid-args: "动作参数无效。"
+    target-not-found: "未找到动作目标。"
+    drop:
+      success: "丢弃动作已执行。"
+    use:
+      success: "使用动作已执行。"
+    sleep:
+      success: "睡眠动作已执行。"
+    wake:
+      success: "唤醒动作已执行。"
+    jump:
+      success: "跳跃动作已执行。"
+    look:
+      success: "视角已更新。"
+    look_at_entity:
+      success: "已朝向目标实体。"
+    move:
+      success: "移动动作已执行。"
+    run:
+      success: "奔跑状态已更新。"
+    sneak:
+      success: "潜行状态已更新。"
+    ride:
+      success: "骑乘动作已执行。"
+    swap_hand:
+      success: "主副手已切换。"
+    attack:
+      success: "攻击动作已执行。"
+    dig:
+      success: "挖掘动作已执行。"
+    hold_item:
+      success: "持物动作已执行。"
+    execute_command:
+      success: "命令动作已执行。"
+    send_chat:
+      success: "聊天动作已执行。"

@@ -1,0 +1,90 @@
+dummy:
+  bootstrap:
+    enabled: "Dummy enabled"
+    disabled: "Dummy disabled"
+  command:
+    usage:
+      root: "/dummy <spawn|remove|list|tp|swap|skin|inv|exp|config|action>"
+      remove: "Usage: /dummy remove <dummy>"
+      tp: "Usage: /dummy tp <dummy> <player|x y z>"
+      swap: "Usage: /dummy swap <dummy> <player>"
+      skin: "Usage: /dummy skin <dummy> [player]"
+      inv: "Usage: /dummy inv <dummy>"
+      exp-transfer: "Usage: /dummy exp <dummy> transfer"
+      config: "Usage: /dummy config <dummy>"
+      action: "Usage: /dummy action <dummy> <action> [args...]"
+      action-look: "Usage: /dummy action <dummy> look <yaw> <pitch>"
+      action-target: "Usage: /dummy action <dummy> <attack|look_at_entity|ride> <target>"
+      action-hold-item: "Usage: /dummy action <dummy> hold_item <material> [amount]"
+      action-move: "Usage: /dummy action <dummy> move <x> <y> <z> [yaw] [pitch]"
+      action-dig: "Usage: /dummy action <dummy> dig <x> <y> <z>"
+      action-chat: "Usage: /dummy action <dummy> send_chat <message...>"
+      action-command: "Usage: /dummy action <dummy> execute_command <command...>"
+    error:
+      player-only: "Only players can perform this action."
+      unknown-subcommand: "Unknown subcommand: {subcommand}"
+      console-target-required: "Console must specify a player target."
+  permission:
+    denied: "You do not have permission to do that."
+  spawn:
+    success: "Dummy created: {name} ({id})"
+  remove:
+    success: "Dummy removed."
+  list:
+    empty: "No dummies found."
+    header: "Dummies:"
+    entry: "- {name} / {id}"
+  teleport:
+    success: "Dummy teleported."
+  swap:
+    success: "Swapped positions with player: {player}"
+  skin:
+    success: "Skin update queued: {player}"
+  inventory:
+    summary: "Inventory entry count: {count}"
+  exp:
+    transfer:
+      success: "Transferred experience: {amount}"
+      empty: "No experience available to transfer."
+  error:
+    player-not-found: "Player not found: {player}"
+    dummy-not-found: "Dummy not found: {dummy}"
+    world-not-found: "World not found: {world}"
+  action:
+    unsupported: "That action is not supported yet."
+    invalid-args: "Invalid action arguments."
+    target-not-found: "Action target not found."
+    drop:
+      success: "Drop action executed."
+    use:
+      success: "Use action executed."
+    sleep:
+      success: "Sleep action executed."
+    wake:
+      success: "Wake action executed."
+    jump:
+      success: "Jump action executed."
+    look:
+      success: "Look action executed."
+    look_at_entity:
+      success: "Look-at-entity action executed."
+    move:
+      success: "Move action executed."
+    run:
+      success: "Sprint state updated."
+    sneak:
+      success: "Sneak state updated."
+    ride:
+      success: "Ride action executed."
+    swap_hand:
+      success: "Main hand and off hand swapped."
+    attack:
+      success: "Attack action executed."
+    dig:
+      success: "Dig action executed."
+    hold_item:
+      success: "Hold-item action executed."
+    execute_command:
+      success: "Execute-command action executed."
+    send_chat:
+      success: "Send-chat action executed."

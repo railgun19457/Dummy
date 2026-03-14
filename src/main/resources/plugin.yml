@@ -1,0 +1,87 @@
+name: Dummy
+main: io.github.railgun19457.dummy.bootstrap.DummyPlugin
+version: ${project.version}
+api-version: '1.20'
+authors:
+  - railgun19457
+description: High-version fake player plugin for Paper/Spigot/Bukkit.
+website: https://github.com/railgun19457/Dummy
+prefix: Dummy
+load: POSTWORLD
+softdepend:
+  - PlaceholderAPI
+commands:
+  dummy:
+    description: Main command for Dummy plugin
+    usage: /dummy <spawn|remove|list|tp|swap|skin|inv|exp|config|action>
+    aliases: [dm]
+    permission: dummy.list
+permissions:
+  dummy.admin:
+    description: Full access to all dummy operations
+    default: op
+    children:
+      dummy.spawn: true
+      dummy.remove: true
+      dummy.list: true
+      dummy.list.others: true
+      dummy.control: true
+      dummy.control.others: true
+      dummy.teleport: true
+      dummy.teleport.others: true
+      dummy.skin: true
+      dummy.skin.others: true
+      dummy.inventory: true
+      dummy.inventory.others: true
+      dummy.exp: true
+      dummy.exp.others: true
+      dummy.config: true
+      dummy.config.others: true
+  dummy.spawn:
+    description: Spawn own dummy
+    default: true
+  dummy.remove:
+    description: Remove own dummy
+    default: true
+  dummy.list:
+    description: List own dummies
+    default: true
+  dummy.list.others:
+    description: List other players dummies
+    default: op
+  dummy.control:
+    description: Control own dummy actions
+    default: true
+  dummy.control.others:
+    description: Control other players dummies
+    default: op
+  dummy.teleport:
+    description: Teleport own dummy
+    default: true
+  dummy.teleport.others:
+    description: Teleport other players dummies
+    default: op
+  dummy.skin:
+    description: Change own dummy skin
+    default: true
+  dummy.skin.others:
+    description: Change other players dummies skin
+    default: op
+  dummy.inventory:
+    description: View own dummy inventory
+    default: true
+  dummy.inventory.others:
+    description: View other players dummies inventory
+    default: op
+  dummy.exp:
+    description: Transfer own dummy stored experience
+    default: true
+  dummy.exp.others:
+    description: Transfer other players dummies stored experience
+    default: op
+  dummy.config:
+    description: Configure own dummy
+    default: true
+  dummy.config.others:
+    description: Configure other players dummies
+    default: op

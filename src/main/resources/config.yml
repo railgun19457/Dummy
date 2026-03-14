@@ -1,0 +1,25 @@
+plugin:
+  default-locale: zh_CN
+
+limits:
+  server-max-dummies: 100
+  per-player-max-dummies: 5
+
+naming:
+  default-name-template: "{player}_{index}"
+
+sleep:
+  follow-owner-sleep: true
+
+removal:
+  drop-inventory-on-remove: false
+
+persistence:
+  save-dummy-data: true
+
+trait-defaults:
+  collidable: true
+  invulnerable: false
+  auto-restock: false
+  allow-inventory-open: true
+  allow-interaction-configure: true
