@@ -1,0 +1,20 @@
+{
+  "dummy.no_permission": "<red>[Dummy] 你没有权限执行该命令。</red>",
+  "dummy.only_player": "<red>[Dummy] 目前仅支持玩家执行此命令。</red>",
+  "dummy.help.title": "<green>[Dummy] 可用子命令:</green>",
+  "dummy.help.spawn": "<gray>- /dummy spawn [name]</gray>",
+  "dummy.help.remove": "<gray>- /dummy remove <name></gray>",
+  "dummy.help.list": "<gray>- /dummy list</gray>",
+  "dummy.help.action": "<gray>- /dummy action <name> <action|stop> [mode] [args...]</gray>",
+  "dummy.spawn.success": "<green>[Dummy] 已创建假人会话: <white><name></white></green>",
+  "dummy.remove.success": "<green>[Dummy] 已移除假人会话: <white><name></white></green>",
+  "dummy.list.empty": "<gray>[Dummy] 当前没有可管理的假人会话。</gray>",
+  "dummy.list.title": "<green>[Dummy] 可管理假人列表(<size>):</green>",
+  "dummy.list.item": "<gray>- <white><name></white> <dark_gray>(owner=<owner>)</dark_gray></gray>",
+  "dummy.action.stop.success": "<green>[Dummy] 已停止动作。</green>",
+  "dummy.action.stop.none": "<yellow>[Dummy] 当前无运行中的动作。</yellow>",
+  "dummy.action.set.success": "<green>[Dummy] 已设置动作: <action> @ <mode></green>",
+  "dummy.action.target_offline": "<red>[Dummy] 目标假人当前不在线。</red>",
+  "dummy.action.not_found": "<red>[Dummy] 未找到假人: <name></red>",
+  "dummy.action.not_owner": "<red>[Dummy] 你只能控制自己的假人。</red>"
+}

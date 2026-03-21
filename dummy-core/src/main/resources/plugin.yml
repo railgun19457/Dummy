@@ -1,0 +1,72 @@
+name: Dummy
+version: 0.1.0
+main: github.com.railgun19457.dummy.DummyPlugin
+api-version: '1.21'
+author: railgun19457
+description: High-performance dummy player plugin for Paper/Bukkit/Spigot.
+
+commands:
+  dummy:
+    description: Dummy main command.
+    aliases: [dm]
+    usage: /dummy
+    permission: dummy.use
+
+permissions:
+  dummy.use:
+    description: Use and manage own dummy players.
+    default: true
+    children:
+      dummy.command.spawn: true
+      dummy.command.remove: true
+      dummy.command.config: true
+      dummy.command.list: true
+      dummy.command.action: true
+      dummy.command.tpto: true
+      dummy.command.tps: true
+      dummy.command.tphere: true
+      dummy.command.skin: true
+      dummy.command.exp: true
+      dummy.command.inv: true
+  dummy.admin:
+    description: Manage all dummy players.
+    default: op
+    children:
+      dummy.use: true
+      dummy.command.reload: true
+  dummy.command.spawn:
+    description: Allow /dummy spawn
+    default: false
+  dummy.command.remove:
+    description: Allow /dummy remove
+    default: false
+  dummy.command.config:
+    description: Allow /dummy config
+    default: false
+  dummy.command.list:
+    description: Allow /dummy list
+    default: false
+  dummy.command.action:
+    description: Allow /dummy action
+    default: false
+  dummy.command.tpto:
+    description: Allow /dummy tpto
+    default: false
+  dummy.command.tps:
+    description: Allow /dummy tps
+    default: false
+  dummy.command.tphere:
+    description: Allow /dummy tphere
+    default: false
+  dummy.command.skin:
+    description: Allow /dummy skin
+    default: false
+  dummy.command.exp:
+    description: Allow /dummy exp
+    default: false
+  dummy.command.inv:
+    description: Allow /dummy inv
+    default: false
+  dummy.command.reload:
+    description: Allow /dummy reload
+    default: false
