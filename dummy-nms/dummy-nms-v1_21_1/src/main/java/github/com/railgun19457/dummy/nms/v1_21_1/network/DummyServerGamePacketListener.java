@@ -1,0 +1,24 @@
+package github.com.railgun19457.dummy.nms.v1_21_1.network;
+
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
+
+public final class DummyServerGamePacketListener extends ServerGamePacketListenerImpl {
+
+    public DummyServerGamePacketListener(
+            MinecraftServer server,
+            Connection connection,
+            ServerPlayer player,
+            CommonListenerCookie cookie
+    ) {
+        super(server, connection, player, cookie);
+    }
+
+    @Override
+    public void send(Packet<?> packet) {
+    }
+}

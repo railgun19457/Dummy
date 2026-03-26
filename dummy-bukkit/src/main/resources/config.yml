@@ -1,0 +1,25 @@
+language: zh_CN
+
+limits:
+  global: 100
+  per-player: 5
+
+dummy:
+  name-prefix: "dm_"
+  default-name-template: "%player%_dummy"
+  skin-cache-ttl-minutes: 60
+  auto-commands:
+    - ""
+
+features:
+  follow-sleep: true
+  drop-inventory-on-remove: false
+  save-data: true
+  remove-on-death: true
+  instant-respawn-on-death: true
+
+defaults:
+  collision: true
+  invulnerable: false
+  auto-restock: false
+  auto-fishing: false

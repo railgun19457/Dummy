@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for dir:*)",
+      "Bash(do mkdir:*)",
+      "Bash(cp dummy-core-old/src/main/java/github/com/railgun19457/dummy/core/$dir/*.java dummy-core/src/main/java/github/com/railgun19457/dummy/core/$dir/)",
+      "Bash(done)",
+      "Bash(git restore:*)",
+      "Bash(cp -r /e/Code/Java/Dummy/dummy-core/src/main/java/github/com/railgun19457/dummy/DummyPlugin.java /e/Code/Java/Dummy/dummy-bukkit/src/main/java/github/com/railgun19457/dummy/)",
+      "Bash(cp -r /e/Code/Java/Dummy/dummy-core/src/main/java/github/com/railgun19457/dummy/command /e/Code/Java/Dummy/dummy-bukkit/src/main/java/github/com/railgun19457/dummy/)",
+      "Bash(cp -r /e/Code/Java/Dummy/dummy-core/src/main/java/github/com/railgun19457/dummy/gui /e/Code/Java/Dummy/dummy-bukkit/src/main/java/github/com/railgun19457/dummy/)",
+      "Bash(cp -r /e/Code/Java/Dummy/dummy-core/src/main/java/github/com/railgun19457/dummy/listener /e/Code/Java/Dummy/dummy-bukkit/src/main/java/github/com/railgun19457/dummy/)",
+      "Bash(rm -rf DummyPlugin.java command gui listener)",
+      "Bash(rm -rf ../../../../../../../resources)",
+      "Bash(./gradlew clean:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(mv v1_21_11/* .)",
+      "Bash(rmdir v1_21_11)",
+      "Bash(./gradlew :dummy-bukkit:compileJava --no-daemon)",
+      "Bash(./gradlew :dummy-core:compileTestJava --no-daemon)"
+    ]
+  }
+}

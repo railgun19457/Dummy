@@ -1,9 +1,10 @@
 package github.com.railgun19457.dummy.core.manager;
+import github.com.railgun19457.dummy.core.util.PositionUtil;
 
-import github.com.railgun19457.dummy.core.config.PluginConfig;
-import github.com.railgun19457.dummy.core.model.DummyPosition;
-import github.com.railgun19457.dummy.core.model.DummySession;
-import github.com.railgun19457.dummy.core.model.DummyTraits;
+import github.com.railgun19457.dummy.common.config.PluginConfig;
+import github.com.railgun19457.dummy.api.model.DummyPosition;
+import github.com.railgun19457.dummy.api.model.DummySession;
+import github.com.railgun19457.dummy.api.model.DummyTraits;
 import github.com.railgun19457.dummy.core.storage.InventoryCodec;
 import github.com.railgun19457.dummy.nms.NmsBridge;
 import org.bukkit.Bukkit;
@@ -67,7 +68,7 @@ public final class DummyManager {
 						config.defaultAutoRestock(),
 						config.defaultAutoFishing()
 				),
-				DummyPosition.from(requester.getLocation()),
+				PositionUtil.from(requester.getLocation()),
 				InventoryCodec.encode(requester.getInventory().getContents()),
 				Instant.now()
 		);
@@ -239,7 +240,7 @@ public final class DummyManager {
 				session.ownerName(),
 				session.skinSource(),
 				session.traits(),
-				DummyPosition.from(location),
+				PositionUtil.from(location),
 				session.inventoryData(),
 				session.createdAt()
 		);

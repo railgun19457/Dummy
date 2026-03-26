@@ -1,9 +1,9 @@
 package github.com.railgun19457.dummy.perf;
 
-import github.com.railgun19457.dummy.core.config.PluginConfig;
+import github.com.railgun19457.dummy.common.config.PluginConfig;
 import github.com.railgun19457.dummy.core.manager.DummyManager;
 import github.com.railgun19457.dummy.core.manager.DummyRegistry;
-import github.com.railgun19457.dummy.core.model.DummySession;
+import github.com.railgun19457.dummy.api.model.DummySession;
 import github.com.railgun19457.dummy.nms.NmsBridge;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;

@@ -1,6 +1,6 @@
 package github.com.railgun19457.dummy.core.manager;
 
-import github.com.railgun19457.dummy.core.model.DummySession;
+import github.com.railgun19457.dummy.api.model.DummySession;
 
 import java.util.ArrayList;
 import java.util.Comparator;

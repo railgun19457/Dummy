@@ -3,8 +3,8 @@ package github.com.railgun19457.dummy.core.storage;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import github.com.railgun19457.dummy.core.log.PluginLogger;
-import github.com.railgun19457.dummy.core.model.DummySession;
+import github.com.railgun19457.dummy.common.log.PluginLogger;
+import github.com.railgun19457.dummy.api.model.DummySession;
 import org.bukkit.plugin.Plugin;
 
 import java.io.IOException;

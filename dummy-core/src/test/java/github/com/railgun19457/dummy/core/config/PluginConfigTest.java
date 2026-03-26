@@ -1,5 +1,6 @@
 package github.com.railgun19457.dummy.core.config;
 
+import github.com.railgun19457.dummy.common.config.PluginConfig;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.junit.jupiter.api.Test;
 

@@ -1,7 +1,7 @@
 package github.com.railgun19457.dummy.core.manager;
 
-import github.com.railgun19457.dummy.core.config.PluginConfig;
-import github.com.railgun19457.dummy.core.model.DummySession;
+import github.com.railgun19457.dummy.common.config.PluginConfig;
+import github.com.railgun19457.dummy.api.model.DummySession;
 import github.com.railgun19457.dummy.nms.NmsBridge;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.PlayerInventory;
@@ -136,8 +136,8 @@ class DummyManagerIntegrationTest {
                 UUID.randomUUID(),
                 "owner",
                 "owner",
-                new github.com.railgun19457.dummy.core.model.DummyTraits(true, false, false, false),
-                new github.com.railgun19457.dummy.core.model.DummyPosition("world", 0, 64, 0, 0, 0),
+                new github.com.railgun19457.dummy.api.model.DummyTraits(true, false, false, false),
+                new github.com.railgun19457.dummy.api.model.DummyPosition("world", 0, 64, 0, 0, 0),
                 "",
                 Instant.now()
         );

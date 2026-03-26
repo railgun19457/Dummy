@@ -1,0 +1,20 @@
+{
+  "dummy.no_permission": "<red>[Dummy] You don't have permission to run this command.</red>",
+  "dummy.only_player": "<red>[Dummy] This command can only be executed by players.</red>",
+  "dummy.help.title": "<green>[Dummy] Available subcommands:</green>",
+  "dummy.help.spawn": "<gray>- /dummy spawn [name]</gray>",
+  "dummy.help.remove": "<gray>- /dummy remove <name></gray>",
+  "dummy.help.list": "<gray>- /dummy list</gray>",
+  "dummy.help.action": "<gray>- /dummy action <name> <action|stop> [mode] [args...]</gray>",
+  "dummy.spawn.success": "<green>[Dummy] Dummy session created: <white><name></white></green>",
+  "dummy.remove.success": "<green>[Dummy] Dummy session removed: <white><name></white></green>",
+  "dummy.list.empty": "<gray>[Dummy] No manageable dummy sessions.</gray>",
+  "dummy.list.title": "<green>[Dummy] Manageable dummies(<size>):</green>",
+  "dummy.list.item": "<gray>- <white><name></white> <dark_gray>(owner=<owner>)</dark_gray></gray>",
+  "dummy.action.stop.success": "<green>[Dummy] Action stopped.</green>",
+  "dummy.action.stop.none": "<yellow>[Dummy] No running action.</yellow>",
+  "dummy.action.set.success": "<green>[Dummy] Action set: <action> @ <mode></green>",
+  "dummy.action.target_offline": "<red>[Dummy] Target dummy is offline.</red>",
+  "dummy.action.not_found": "<red>[Dummy] Dummy not found: <name></red>",
+  "dummy.action.not_owner": "<red>[Dummy] You can only manage your own dummy.</red>"
+}
