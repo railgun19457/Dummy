@@ -67,7 +67,10 @@ public final class NmsBridgeV1_21_11 implements NmsBridge {
 
 			DummyConnection connection = new DummyConnection(InetAddress.getLoopbackAddress());
 			CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
-			server.getPlayerList().placeNewPlayer(connection, serverPlayer, cookie);
+
+			Object playerList = getPlayerList(server);
+			Method placeNewPlayer = playerList.getClass().getMethod("placeNewPlayer", connection.getClass().getSuperclass(), ServerPlayer.class, CommonListenerCookie.class);
+			placeNewPlayer.invoke(playerList, connection, serverPlayer, cookie);
 
 			DummyServerGamePacketListener listener = new DummyServerGamePacketListener(server, connection, serverPlayer, cookie);
 			serverPlayer.connection = listener;
@@ -128,9 +131,14 @@ public final class NmsBridgeV1_21_11 implements NmsBridge {
 	}
 
 	private void removeFromPlayerList(MinecraftServer server, ServerPlayer serverPlayer) throws ReflectiveOperationException {
-		Object playerList = server.getPlayerList();
+		Object playerList = getPlayerList(server);
 		Method removeMethod = playerList.getClass().getMethod("remove", ServerPlayer.class);
 		removeMethod.invoke(playerList, serverPlayer);
+	}
+
+	private Object getPlayerList(MinecraftServer server) throws ReflectiveOperationException {
+		Method getPlayerList = MinecraftServer.class.getMethod("getPlayerList");
+		return getPlayerList.invoke(server);
 	}
 
 	private void moveServerPlayer(ServerPlayer serverPlayer, double x, double y, double z, float yaw, float pitch) throws ReflectiveOperationException {

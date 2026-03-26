@@ -11,7 +11,7 @@ rem   release.bat skip-tests release "E:\MC\PluginTestServers\paper\plugins"
 set "PROJECT_ROOT=%~dp0.."
 for %%I in ("%PROJECT_ROOT%") do set "PROJECT_ROOT=%%~fI"
 set "GRADLEW=%PROJECT_ROOT%\gradlew.bat"
-set "LIBS_DIR=%PROJECT_ROOT%\dummy-core\build\libs"
+set "LIBS_DIR=%PROJECT_ROOT%\dummy-bukkit\build\libs"
 
 set "SKIP_TESTS=0"
 if /I "%~1"=="skip-tests" set "SKIP_TESTS=1"
@@ -29,9 +29,9 @@ if not exist "%GRADLEW%" (
 echo [Release] Starting build...
 pushd "%PROJECT_ROOT%" >nul
 if "%SKIP_TESTS%"=="1" (
-  call "%GRADLEW%" :dummy-core:clean :dummy-core:build -x test
+  call "%GRADLEW%" :dummy-bukkit:clean :dummy-bukkit:build -x test
 ) else (
-  call "%GRADLEW%" :dummy-core:clean :dummy-core:build
+  call "%GRADLEW%" :dummy-bukkit:clean :dummy-bukkit:build
 )
 if errorlevel 1 (
   popd >nul
