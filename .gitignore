@@ -7,7 +7,6 @@ build/
 target/
 out/
 bin/
-scripts/
 release/
 
 # ===== Gradle =====
@@ -31,4 +30,5 @@ replay_pid*
 
 # ===== IDE / Editor =====
 .vscode/
+.claude/
 
