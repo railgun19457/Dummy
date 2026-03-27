@@ -34,6 +34,31 @@ class DummyManagerIntegrationTest {
             public void removeDummy(DummySession session) {
                 removes.incrementAndGet();
             }
+
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSEntity fromEntity(org.bukkit.entity.Entity entity) {
+                return null;
+            }
+
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSServerPlayer fromPlayer(Player player) {
+                return null;
+            }
+
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSNetwork createNetwork(java.net.InetAddress address) {
+                return null;
+            }
+
+            @Override
+            public github.com.railgun19457.dummy.nms.action.ActionTicker createActionTicker(Player player, github.com.railgun19457.dummy.nms.action.ActionType type, github.com.railgun19457.dummy.nms.action.ActionSetting setting) {
+                return null;
+            }
+
+            @Override
+            public boolean isSupported() {
+                return true;
+            }
         };
 
         PluginConfig config = new PluginConfig(
@@ -75,6 +100,17 @@ class DummyManagerIntegrationTest {
             @Override
             public void removeDummy(DummySession session) {
             }
+
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSEntity fromEntity(org.bukkit.entity.Entity entity) { return null; }
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSServerPlayer fromPlayer(Player player) { return null; }
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSNetwork createNetwork(java.net.InetAddress address) { return null; }
+            @Override
+            public github.com.railgun19457.dummy.nms.action.ActionTicker createActionTicker(Player player, github.com.railgun19457.dummy.nms.action.ActionType type, github.com.railgun19457.dummy.nms.action.ActionSetting setting) { return null; }
+            @Override
+            public boolean isSupported() { return true; }
         };
 
         PluginConfig config = new PluginConfig(
@@ -120,6 +156,17 @@ class DummyManagerIntegrationTest {
             @Override
             public void removeDummy(DummySession session) {
             }
+
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSEntity fromEntity(org.bukkit.entity.Entity entity) { return null; }
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSServerPlayer fromPlayer(Player player) { return null; }
+            @Override
+            public github.com.railgun19457.dummy.nms.NMSNetwork createNetwork(java.net.InetAddress address) { return null; }
+            @Override
+            public github.com.railgun19457.dummy.nms.action.ActionTicker createActionTicker(Player player, github.com.railgun19457.dummy.nms.action.ActionType type, github.com.railgun19457.dummy.nms.action.ActionSetting setting) { return null; }
+            @Override
+            public boolean isSupported() { return true; }
         };
 
         PluginConfig config = new PluginConfig(

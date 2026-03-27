@@ -3,11 +3,11 @@ package github.com.railgun19457.dummy.nms.v1_21_1;
 import com.mojang.authlib.GameProfile;
 import github.com.railgun19457.dummy.common.log.PluginLogger;
 import github.com.railgun19457.dummy.api.model.DummySession;
+import github.com.railgun19457.dummy.nms.*;
 import github.com.railgun19457.dummy.nms.skin.SkinFetchService;
 import github.com.railgun19457.dummy.nms.skin.SkinTexture;
 import github.com.railgun19457.dummy.nms.v1_21_1.network.DummyConnection;
 import github.com.railgun19457.dummy.nms.v1_21_1.network.DummyServerGamePacketListener;
-import github.com.railgun19457.dummy.nms.NmsBridge;
 import com.mojang.authlib.properties.Property;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
@@ -16,6 +16,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Method;
 import java.net.InetAddress;
@@ -178,5 +181,30 @@ public final class NmsBridgeV1_21_11 implements NmsBridge {
 		Object craftWorld = world;
 		Method getHandle = craftWorld.getClass().getMethod("getHandle");
 		return (ServerLevel) getHandle.invoke(craftWorld);
+	}
+
+	@Override
+	public @NotNull NMSEntity fromEntity(@NotNull Entity entity) {
+		return new NMSEntityImpl(entity);
+	}
+
+	@Override
+	public @NotNull NMSServerPlayer fromPlayer(@NotNull Player player) {
+		return new NMSServerPlayerImpl(player);
+	}
+
+	@Override
+	public @NotNull NMSNetwork createNetwork(@NotNull InetAddress address) {
+		return new NMSNetworkImpl(address);
+	}
+
+	@Override
+	public @NotNull github.com.railgun19457.dummy.nms.action.ActionTicker createActionTicker(@NotNull Player player, @NotNull github.com.railgun19457.dummy.nms.action.ActionType type, @NotNull github.com.railgun19457.dummy.nms.action.ActionSetting setting) {
+		return new github.com.railgun19457.dummy.nms.v1_21_1.action.ActionTickerImpl(fromPlayer(player), type, setting);
+	}
+
+	@Override
+	public boolean isSupported() {
+		return true;
 	}
 }
