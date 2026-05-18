@@ -371,7 +371,7 @@ public final class DummyActionService {
 
     private boolean isInactive(DummyInstance dummy) {
         Player player = dummy.player();
-        return dummy.dead() || player.isDead() || !player.isValid();
+        return player.isDead() || !player.isValid();
     }
 
     private boolean destroyBlock(Player player, Block block) {

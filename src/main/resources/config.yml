@@ -39,12 +39,9 @@ commands:
   after-spawn: []
 
 death:
-  # If true, dead dummies are removed after death. This takes priority over auto-revive.
-  auto-remove: false
-  # If true and auto-remove is false, dead dummies respawn automatically.
-  auto-revive: false
-  # Delay before auto-revive runs, in ticks.
-  auto-revive-delay-ticks: 20
+  # If true, a dead dummy is removed and spawned again at its respawn location.
+  # If false, dead dummies are removed after death.
+  auto-resummon: false
 
 actions:
   # If true, repeated actions are paused instead of stopped when a dummy dies,

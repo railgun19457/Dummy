@@ -23,7 +23,7 @@ import org.bukkit.entity.Player;
 
 public final class DummyCommand implements BasicCommand {
     private static final List<String> SUBCOMMANDS = List.of(
-            "spawn", "remove", "list", "reload", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "revive", "actions"
+            "spawn", "remove", "list", "reload", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "actions"
     );
     private static final List<String> CONFIG_KEYS = List.of("invulnerable", "collision", "ghost", "chunk-loader", "show-in-tab", "name-format");
     private static final List<String> ACTIONS = List.of(
@@ -72,7 +72,6 @@ public final class DummyCommand implements BasicCommand {
                 case "tpto" -> tpto(sender, args);
                 case "tphere" -> tphere(sender, args);
                 case "tps" -> tps(sender, args);
-                case "revive" -> revive(sender, args);
                 case "actions" -> actions(sender, args);
                 default -> sendUsage(sender);
             }
@@ -99,9 +98,6 @@ public final class DummyCommand implements BasicCommand {
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("remove")) {
             return removeSuggestions(source.getSender(), args[1]);
-        }
-        if (args.length == 2 && args[0].equalsIgnoreCase("revive")) {
-            return filter(dummyManager.revivableNames(), args[1]);
         }
         if (args.length == 2 && needsActiveDummyName(args[0])) {
             return filter(dummyManager.activeNames(), args[1]);
@@ -294,20 +290,6 @@ public final class DummyCommand implements BasicCommand {
         message(sender, "command.tps-success", NamedTextColor.GREEN, args[1]);
     }
 
-    private void revive(CommandSender sender, String[] args) {
-        requirePermission(sender, "dummy.command.revive");
-        Player player = requirePlayer(sender);
-        if (args.length != 2) {
-            message(sender, "usage.revive", NamedTextColor.YELLOW);
-            return;
-        }
-        if (dummyManager.revive(args[1], player.getLocation())) {
-            message(sender, "command.revive-success", NamedTextColor.GREEN, args[1]);
-            return;
-        }
-        message(sender, "command.revive-not-needed", NamedTextColor.YELLOW, args[1]);
-    }
-
     private void actions(CommandSender sender, String[] args) {
         requirePermission(sender, "dummy.command.actions");
         if (args.length < 3) {
@@ -353,7 +335,7 @@ public final class DummyCommand implements BasicCommand {
     }
 
     private boolean needsDummyName(String subcommand) {
-        return List.of("remove", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "revive", "actions").contains(subcommand.toLowerCase(Locale.ROOT));
+        return List.of("remove", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "actions").contains(subcommand.toLowerCase(Locale.ROOT));
     }
 
     private boolean needsActiveDummyName(String subcommand) {

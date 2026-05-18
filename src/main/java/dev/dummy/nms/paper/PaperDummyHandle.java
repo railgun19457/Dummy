@@ -9,10 +9,7 @@ import net.kyori.adventure.text.Component;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
-import net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.Pose;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.craftbukkit.CraftServer;
@@ -25,15 +22,13 @@ import org.bukkit.scheduler.BukkitTask;
 public final class PaperDummyHandle implements DummyHandle {
     private static final String NO_COLLISION_TEAM = "dummy_no_collision";
 
-    private ServerPlayer handle;
-    private final DummyTicker ticker;
+    private final ServerPlayer handle;
     private final BukkitTask tickerTask;
     private boolean removed;
     private boolean listed = true;
 
-    public PaperDummyHandle(ServerPlayer handle, DummyTicker ticker, BukkitTask tickerTask) {
+    public PaperDummyHandle(ServerPlayer handle, BukkitTask tickerTask) {
         this.handle = handle;
-        this.ticker = ticker;
         this.tickerTask = tickerTask;
     }
 
@@ -80,36 +75,6 @@ public final class PaperDummyHandle implements DummyHandle {
     }
 
     @Override
-    public void respawn() {
-        if (!player().isDead()) {
-            return;
-        }
-        Player player = player();
-        player.spigot().respawn();
-        if (player instanceof CraftPlayer craftPlayer) {
-            handle = craftPlayer.getHandle();
-        }
-
-        var connection = handle.connection;
-        if (connection instanceof DummyServerGamePacketListener dummyConnection) {
-            dummyConnection.completeRespawn();
-        } else {
-            connection.handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
-            connection.resetPosition();
-        }
-        ticker.handle(handle);
-        resetPostRespawnPhysics();
-    }
-
-    @Override
-    public void hideEntity() {
-        sendRemoveEntityPacket();
-        if (!handle.isRemoved()) {
-            handle.level().removePlayerImmediately(handle, Entity.RemovalReason.KILLED);
-        }
-    }
-
-    @Override
     public void remove(Component reason) {
         if (removed) {
             return;
@@ -142,23 +107,6 @@ public final class PaperDummyHandle implements DummyHandle {
             team.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
         }
         team.addEntry(player.getName());
-    }
-
-    private void resetPostRespawnPhysics() {
-        handle.unsetRemoved();
-        handle.valid = true;
-        handle.noPhysics = false;
-        handle.setNoGravity(false);
-        handle.setPose(Pose.STANDING);
-
-        Player player = player();
-        player.setNoPhysics(false);
-        player.setGravity(true);
-        player.setFallDistance(0.0F);
-        if (player.isFlying()) {
-            player.setFlying(false);
-        }
-        player.setSleepingIgnored(true);
     }
 
     private void removeCollisionRule(Player player) {

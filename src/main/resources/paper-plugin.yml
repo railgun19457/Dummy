@@ -45,9 +45,6 @@ permissions:
   dummy.command.tps:
     description: Allows swapping positions with dummy players.
     default: true
-  dummy.command.revive:
-    description: Allows reviving dead dummy players.
-    default: true
   dummy.command.actions:
     description: Allows controlling dummy actions.
     default: true

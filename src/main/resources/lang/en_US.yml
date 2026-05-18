@@ -34,7 +34,7 @@ error:
   craft-world-required: "Spawn world is not a CraftWorld."
 
 usage:
-  root: "Usage: /dummy <spawn|remove|list|reload|config|skin|exp|inv|tpto|tphere|tps|revive|actions>"
+  root: "Usage: /dummy <spawn|remove|list|reload|config|skin|exp|inv|tpto|tphere|tps|actions>"
   spawn: "Usage: /dummy spawn <name>"
   remove: "Usage: /dummy remove <name|all>"
   config: "Usage: /dummy config <name> [key] [value]"
@@ -45,7 +45,6 @@ usage:
   tpto: "Usage: /dummy tpto <name>"
   tphere: "Usage: /dummy tphere <name>"
   tps: "Usage: /dummy tps <name>"
-  revive: "Usage: /dummy revive <name>"
   actions: "Usage: /dummy actions <name> <action> [once|repeat] ..., or <action> <args...> repeat <intervalTicks> [durationTicks]"
 
 command:
@@ -65,8 +64,6 @@ command:
   tpto-success: "Teleported to {0}."
   tphere-success: "Teleported {0} to you."
   tps-success: "Swapped positions with {0}."
-  revive-success: "Revived dummy {0}."
-  revive-not-needed: "Dummy {0} does not need revival."
   actions-stopped: "Stopped {0} action(s)."
   actions-started: "Started action {0} for {1}."
 

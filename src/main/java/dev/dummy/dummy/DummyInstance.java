@@ -15,7 +15,6 @@ public final class DummyInstance {
     private final DummyHandle handle;
     private DummySettings settings;
     private DummySkin skin;
-    private boolean dead;
 
     public DummyInstance(UUID uuid, UUID creatorUuid, String creatorName, String name, DummySettings settings, DummySkin skin, DummyHandle handle) {
         this.uuid = uuid;
@@ -61,14 +60,6 @@ public final class DummyInstance {
 
     public DummyHandle handle() {
         return handle;
-    }
-
-    public boolean dead() {
-        return dead;
-    }
-
-    public void dead(boolean dead) {
-        this.dead = dead;
     }
 
     public Player player() {

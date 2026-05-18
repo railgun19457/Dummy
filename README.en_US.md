@@ -9,7 +9,7 @@ Dummy is a fake player plugin for modern Paper servers. It creates real server-s
 ## Features
 
 - Creates real `ServerPlayer` dummy players using Paper + NMS
-- Supports spawn, remove, list, reload, revive, and teleport management
+- Supports spawn, remove, list, reload, and teleport management
 - Opens a GUI by right-clicking a dummy, with inventory, armor, and offhand management
 - Supports per-dummy settings: invulnerable, collision, ghost mode, chunk loader, Tab visibility, and name format
 - Uses the creator skin by default and supports fetching skins by premium player name
@@ -58,7 +58,6 @@ Dummy is a fake player plugin for modern Paper servers. It creates real server-s
 | `/dummy tpto <name>` | Teleports you to a dummy | `dummy.command.tpto` |
 | `/dummy tphere <name>` | Teleports a dummy to your current location | `dummy.command.tphere` |
 | `/dummy tps <name>` | Swaps positions with a dummy | `dummy.command.tps` |
-| `/dummy revive <name>` | Revives a dead dummy at your current location | `dummy.command.revive` |
 | `/dummy actions <name> <action> ...` | Controls dummy actions | `dummy.command.actions` |
 
 ## Actions
@@ -103,7 +102,7 @@ Action mode notes:
 - `once` runs the action once.
 - `repeat <intervalTicks> [durationTicks]` repeats the action at a tick interval, with an optional duration.
 - Some actions also support suffix syntax: `<action> <args...> repeat <intervalTicks> [durationTicks]`.
-- Repeated actions pause by default when a dummy dies, is removed, or quits, and continue when the same UUID dummy is revived or appears again. Disable this with `actions.preserve-on-lifecycle`.
+- Repeated actions pause by default when a dummy dies, is removed, or quits, and continue when the same UUID dummy appears again. Disable this with `actions.preserve-on-lifecycle`.
 
 ## Permissions
 
@@ -122,7 +121,6 @@ Action mode notes:
 | `dummy.command.tpto` | Allows teleporting to dummies | All players |
 | `dummy.command.tphere` | Allows teleporting dummies to you | All players |
 | `dummy.command.tps` | Allows swapping positions | All players |
-| `dummy.command.revive` | Allows reviving dummies | All players |
 | `dummy.command.actions` | Allows controlling dummy actions | All players |
 
 ## Configuration Overview
@@ -135,7 +133,7 @@ Main `config.yml` sections:
 - `storage`: Startup restoration and removed-data retention
 - `inventory`: Whether inventory, armor, and offhand items drop when a dummy is removed or the plugin shuts down
 - `commands`: Console commands executed before and after dummy creation
-- `death`: Automatic remove or revive behavior after dummy death
+- `death`: Whether a dead dummy is automatically re-summoned
 - `actions`: Action system settings, such as preserving lifecycle actions and mount search range
 
 Per-dummy settings configurable by command:

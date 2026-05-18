@@ -36,7 +36,7 @@ public final class DummyServerGamePacketListener extends ServerGamePacketListene
     public void tick() {
         // Fake players do not send movement packets. The vanilla connection tick
         // snaps players back to the last client-confirmed position every tick,
-        // which prevents gravity and knockback after respawn.
+        // which prevents server-side gravity and knockback from taking effect.
     }
 
     @Override
@@ -72,7 +72,7 @@ public final class DummyServerGamePacketListener extends ServerGamePacketListene
         });
     }
 
-    public void completeRespawn() {
+    public void acceptPlayerLoad() {
         runOnMain(() -> {
             handleAcceptPlayerLoad(new ServerboundPlayerLoadedPacket());
             resetPosition();

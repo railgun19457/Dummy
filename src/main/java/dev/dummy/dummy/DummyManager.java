@@ -175,14 +175,7 @@ public final class DummyManager {
 
     public List<String> activeNames() {
         return all().stream()
-                .filter(dummy -> !canRevive(dummy))
-                .map(DummyInstance::name)
-                .toList();
-    }
-
-    public List<String> revivableNames() {
-        return all().stream()
-                .filter(this::canRevive)
+                .filter(this::isActive)
                 .map(DummyInstance::name)
                 .toList();
     }
@@ -200,21 +193,13 @@ public final class DummyManager {
         if (dummy == null) {
             return;
         }
-        dummy.dead(true);
-        releaseChunkTicket(dummy);
-        dummy.handle().hideEntity();
-        refreshTabVisibility(dummy);
-        sendProxyTabUpdate(dummy);
+        boolean autoResummon = plugin.getConfig().getBoolean("death.auto-resummon", false);
+        DummyRecord record = autoResummon ? snapshot(dummy, resummonLocation(player)) : null;
+        removeDeadDummy(dummy, !autoResummon);
         save();
-        if (plugin.getConfig().getBoolean("death.auto-remove", false)) {
-            Bukkit.getScheduler().runTask(plugin, () -> remove(dummy.name(), "died"));
-        } else if (plugin.getConfig().getBoolean("death.auto-revive", false)) {
-            long delay = Math.max(0L, plugin.getConfig().getLong("death.auto-revive-delay-ticks", 20L));
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (contains(dummy.name())) {
-                    revive(dummy.name());
-                }
-            }, delay);
+
+        if (record != null) {
+            Bukkit.getScheduler().runTask(plugin, () -> restoreResummoned(record));
         }
     }
 
@@ -269,57 +254,6 @@ public final class DummyManager {
         dummy.handle().teleport(location);
         updateChunkTicket(dummy);
         save();
-    }
-
-    public boolean revive(String name) {
-        return revive(name, null);
-    }
-
-    public boolean revive(String name, Location location) {
-        DummyInstance dummy = require(name);
-        if (!canRevive(dummy)) {
-            return false;
-        }
-
-        Location reviveLocation = location == null ? respawnLocation(dummy.player()) : location;
-        DummyRecord record = snapshot(dummy, reviveLocation);
-        if (dummy.player().isDead() && respawnExisting(dummy, record)) {
-            return true;
-        }
-
-        recreateRevived(dummy, record);
-        return true;
-    }
-
-    private boolean respawnExisting(DummyInstance dummy, DummyRecord record) {
-        try {
-            dummy.handle().respawn();
-            if (dummy.player().isDead() || !dummy.player().isValid()) {
-                return false;
-            }
-            dummy.handle().teleport(record.location());
-            dummy.applyRecord(record);
-            dummy.handle().applySettings(dummy.name(), dummy.settings());
-            dummy.dead(false);
-            updateChunkTicket(dummy);
-            refreshTabVisibility(dummy);
-            sendProxyTabUpdate(dummy);
-            save();
-            return true;
-        } catch (RuntimeException ex) {
-            plugin.getLogger().warning("Failed to respawn dummy '" + dummy.name() + "' in place: " + ex.getMessage());
-            return false;
-        }
-    }
-
-    private void recreateRevived(DummyInstance dummy, DummyRecord record) {
-        releaseChunkTicket(dummy);
-        dummiesByName.remove(normalize(dummy.name()));
-        dummiesByUuid.remove(dummy.uuid());
-        sendProxyTabRemove(dummy);
-        dummy.handle().remove(Component.text("[Dummy] revived"));
-
-        Bukkit.getScheduler().runTask(plugin, () -> restoreRevived(record));
     }
 
     public void teleportPlayerToDummy(Player player, String name) {
@@ -417,10 +351,6 @@ public final class DummyManager {
         if (viewer.getUniqueId().equals(dummy.uuid()) || isDummy(viewer)) {
             return;
         }
-        if (canRevive(dummy) && !dummy.settings().showInTab()) {
-            viewer.unlistPlayer(dummy.player());
-            return;
-        }
         if (dummy.settings().showInTab()) {
             viewer.listPlayer(dummy.player());
             return;
@@ -428,7 +358,7 @@ public final class DummyManager {
         viewer.listPlayer(dummy.player());
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             DummyInstance current = get(dummy.name());
-            if (viewer.isOnline() && current != null && !current.settings().showInTab() && !canRevive(current)) {
+            if (viewer.isOnline() && current != null && isActive(current) && !current.settings().showInTab()) {
                 viewer.unlistPlayer(current.player());
             }
         }, 40L);
@@ -574,14 +504,26 @@ public final class DummyManager {
         }
     }
 
-    private boolean canRevive(DummyInstance dummy) {
-        Player player = dummy.player();
-        return dummy.dead() || player.isDead() || !player.isValid();
+    private void removeDeadDummy(DummyInstance dummy, boolean saveRemoved) {
+        releaseChunkTicket(dummy);
+        dummiesByName.remove(normalize(dummy.name()));
+        dummiesByUuid.remove(dummy.uuid());
+        if (saveRemoved) {
+            storage.saveRemoved(dummy);
+        }
+        sendProxyTabRemove(dummy);
+        dummy.handle().remove(Component.text("[Dummy] died"));
+        broadcastQuit(dummy);
     }
 
-    private void restoreRevived(DummyRecord record) {
+    private boolean isActive(DummyInstance dummy) {
+        Player player = dummy.player();
+        return !player.isDead() && player.isValid();
+    }
+
+    private void restoreResummoned(DummyRecord record) {
         try {
-            DummyInstance revived = spawn(
+            DummyInstance resummoned = spawn(
                     Bukkit.getConsoleSender(),
                     record.uuid(),
                     record.creatorUuid(),
@@ -593,13 +535,12 @@ public final class DummyManager {
                     false,
                     false
             );
-            revived.applyRecord(record);
-            revived.handle().applySettings(revived.name(), revived.settings());
-            revived.dead(false);
-            updateChunkTicket(revived);
+            resummoned.applyRecord(record);
+            resummoned.handle().applySettings(resummoned.name(), resummoned.settings());
+            updateChunkTicket(resummoned);
             save();
         } catch (RuntimeException ex) {
-            plugin.getLogger().warning("Failed to revive dummy '" + record.name() + "': " + ex.getMessage());
+            plugin.getLogger().warning("Failed to resummon dummy '" + record.name() + "': " + ex.getMessage());
         }
     }
 
@@ -620,7 +561,7 @@ public final class DummyManager {
         );
     }
 
-    private Location respawnLocation(Player player) {
+    private Location resummonLocation(Player player) {
         Location location = player.getRespawnLocation();
         if (location == null || location.getWorld() == null) {
             location = player.getWorld().getSpawnLocation();

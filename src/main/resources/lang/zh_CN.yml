@@ -34,7 +34,7 @@ error:
   craft-world-required: "召唤世界不是 CraftWorld。"
 
 usage:
-  root: "用法：/dummy <spawn|remove|list|reload|config|skin|exp|inv|tpto|tphere|tps|revive|actions>"
+  root: "用法：/dummy <spawn|remove|list|reload|config|skin|exp|inv|tpto|tphere|tps|actions>"
   spawn: "用法：/dummy spawn <name>"
   remove: "用法：/dummy remove <name|all>"
   config: "用法：/dummy config <name> [key] [value]"
@@ -45,7 +45,6 @@ usage:
   tpto: "用法：/dummy tpto <name>"
   tphere: "用法：/dummy tphere <name>"
   tps: "用法：/dummy tps <name>"
-  revive: "用法：/dummy revive <name>"
   actions: "用法：/dummy actions <name> <action> [once|repeat] ...，也可写为 <action> <args...> repeat <intervalTicks> [durationTicks]"
 
 command:
@@ -65,8 +64,6 @@ command:
   tpto-success: "已传送到 {0}。"
   tphere-success: "已将 {0} 传送到你的位置。"
   tps-success: "已与 {0} 交换位置。"
-  revive-success: "已复活假人 {0}。"
-  revive-not-needed: "假人 {0} 当前不需要复活。"
   actions-stopped: "已停止 {0} 个动作。"
   actions-started: "已为 {1} 启动动作 {0}。"
 

@@ -67,11 +67,11 @@ public final class PaperFakePlayerAdapter implements FakePlayerAdapter {
         serverPlayer.connection = listener;
         player.teleport(location);
         resetSurvivalState(player);
-        listener.completeRespawn();
+        listener.acceptPlayerLoad();
 
         DummyTicker ticker = new DummyTicker(serverPlayer);
         BukkitTask tickerTask = ticker.runTaskTimer(plugin, 0L, 1L);
-        PaperDummyHandle handle = new PaperDummyHandle(serverPlayer, ticker, tickerTask);
+        PaperDummyHandle handle = new PaperDummyHandle(serverPlayer, tickerTask);
         handle.applySkin(request.skin());
         handle.applySettings(request.name(), request.settings());
         return handle;

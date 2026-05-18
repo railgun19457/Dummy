@@ -9,7 +9,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 ## 功能特性
 
 - 基于 Paper + NMS 创建真实 `ServerPlayer` 假人
-- 支持召唤、移除、列表、重载、复活和传送管理
+- 支持召唤、移除、列表、重载和传送管理
 - 支持右键假人打开 GUI，管理背包、装备栏和副手栏
 - 支持假人配置：无敌、碰撞、幽灵模式、区块加载、Tab 显示和名字格式
 - 支持默认继承召唤者皮肤，并可按正版玩家名拉取皮肤
@@ -58,7 +58,6 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `/dummy tpto <name>` | 将玩家传送到假人处 | `dummy.command.tpto` |
 | `/dummy tphere <name>` | 将假人传送到玩家当前位置 | `dummy.command.tphere` |
 | `/dummy tps <name>` | 交换玩家和假人的位置 | `dummy.command.tps` |
-| `/dummy revive <name>` | 在玩家当前位置复活已死亡假人 | `dummy.command.revive` |
 | `/dummy actions <name> <action> ...` | 控制假人执行动作 | `dummy.command.actions` |
 
 ## 动作
@@ -103,7 +102,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 - `once` 表示单次执行。
 - `repeat <intervalTicks> [durationTicks]` 表示按 tick 间隔重复执行，可选持续时间。
 - 部分动作也支持后缀写法：`<action> <args...> repeat <intervalTicks> [durationTicks]`。
-- 重复动作默认会在假人死亡、移除、退出时暂停，并在同 UUID 假人复活或重新出现后继续，可通过 `actions.preserve-on-lifecycle` 关闭。
+- 重复动作默认会在假人死亡、移除、退出时暂停，并在同 UUID 假人重新出现后继续，可通过 `actions.preserve-on-lifecycle` 关闭。
 
 ## 权限
 
@@ -122,7 +121,6 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `dummy.command.tpto` | 允许传送到假人 | 所有玩家 |
 | `dummy.command.tphere` | 允许将假人传送到当前位置 | 所有玩家 |
 | `dummy.command.tps` | 允许交换位置 | 所有玩家 |
-| `dummy.command.revive` | 允许复活假人 | 所有玩家 |
 | `dummy.command.actions` | 允许控制假人动作 | 所有玩家 |
 
 ## 配置概览
@@ -135,7 +133,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 - `storage`：启动恢复和移除后保留数据
 - `inventory`：假人移除或插件关闭时是否掉落背包、装备和副手物品
 - `commands`：假人创建前后由控制台执行的命令
-- `death`：假人死亡后的自动移除或自动复活设置
+- `death`：假人死亡后是否自动重新召唤
 - `actions`：动作系统配置，例如生命周期保留动作和骑乘搜索范围
 
 可通过命令修改的假人配置项：
