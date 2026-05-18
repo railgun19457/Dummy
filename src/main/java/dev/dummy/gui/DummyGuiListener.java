@@ -47,7 +47,7 @@ public final class DummyGuiListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (event.getInventory().getHolder() instanceof DummyInventoryHolder) {
             if (event.isShiftClick()) {
-                event.setCancelled(true);
+                handleDummyInventoryShiftClick(event);
                 return;
             }
             if (event.getRawSlot() < event.getInventory().getSize() && !isEditableDummyInventorySlot(event.getRawSlot())) {
@@ -181,6 +181,71 @@ public final class DummyGuiListener implements Listener {
 
     private boolean isEditableDummyInventorySlot(int rawSlot) {
         return (rawSlot >= 0 && rawSlot < 36) || (rawSlot >= 45 && rawSlot <= 48) || rawSlot == 50;
+    }
+
+    private void handleDummyInventoryShiftClick(InventoryClickEvent event) {
+        event.setCancelled(true);
+        ItemStack current = event.getCurrentItem();
+        if (isEmpty(current)) {
+            return;
+        }
+
+        Inventory top = event.getView().getTopInventory();
+        int rawSlot = event.getRawSlot();
+        if (rawSlot >= 0 && rawSlot < top.getSize()) {
+            if (!isEditableDummyInventorySlot(rawSlot)) {
+                return;
+            }
+            top.setItem(rawSlot, moveItemToSlots(event.getView().getBottomInventory(), current, 0, 36));
+            return;
+        }
+
+        Inventory clicked = event.getClickedInventory();
+        if (clicked == null) {
+            return;
+        }
+        clicked.setItem(event.getSlot(), moveItemToSlots(top, current, 0, 36));
+    }
+
+    private ItemStack moveItemToSlots(Inventory inventory, ItemStack item, int startInclusive, int endExclusive) {
+        ItemStack remaining = item.clone();
+        int end = Math.min(endExclusive, inventory.getSize());
+        for (int slot = startInclusive; slot < end; slot++) {
+            ItemStack target = inventory.getItem(slot);
+            if (isEmpty(target) || !target.isSimilar(remaining)) {
+                continue;
+            }
+            int maxStackSize = Math.min(target.getMaxStackSize(), inventory.getMaxStackSize());
+            int moved = Math.min(maxStackSize - target.getAmount(), remaining.getAmount());
+            if (moved <= 0) {
+                continue;
+            }
+            target.setAmount(target.getAmount() + moved);
+            remaining.setAmount(remaining.getAmount() - moved);
+            if (remaining.getAmount() <= 0) {
+                return null;
+            }
+        }
+
+        for (int slot = startInclusive; slot < end; slot++) {
+            if (!isEmpty(inventory.getItem(slot))) {
+                continue;
+            }
+            int moved = Math.min(Math.min(remaining.getMaxStackSize(), inventory.getMaxStackSize()), remaining.getAmount());
+            ItemStack placed = remaining.clone();
+            placed.setAmount(moved);
+            inventory.setItem(slot, placed);
+            remaining.setAmount(remaining.getAmount() - moved);
+            if (remaining.getAmount() <= 0) {
+                return null;
+            }
+        }
+
+        return remaining;
+    }
+
+    private boolean isEmpty(ItemStack item) {
+        return item == null || item.getType().isAir() || item.getAmount() <= 0;
     }
 
     private void syncDummyInventory(Inventory inventory, DummyInstance dummy) {
