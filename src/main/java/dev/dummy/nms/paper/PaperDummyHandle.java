@@ -1,14 +1,18 @@
 package dev.dummy.nms.paper;
 
-import com.destroystokyo.paper.profile.ProfileProperty;
+import dev.dummy.DummyPlugin;
 import dev.dummy.dummy.DummySettings;
 import dev.dummy.dummy.DummySkin;
 import dev.dummy.nms.DummyHandle;
 import java.util.List;
 import net.kyori.adventure.text.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBundlePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
+import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerPlayer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -22,12 +26,14 @@ import org.bukkit.scheduler.BukkitTask;
 public final class PaperDummyHandle implements DummyHandle {
     private static final String NO_COLLISION_TEAM = "dummy_no_collision";
 
+    private final DummyPlugin plugin;
     private final ServerPlayer handle;
     private final BukkitTask tickerTask;
     private boolean removed;
     private boolean listed = true;
 
-    public PaperDummyHandle(ServerPlayer handle, BukkitTask tickerTask) {
+    public PaperDummyHandle(DummyPlugin plugin, ServerPlayer handle, BukkitTask tickerTask) {
+        this.plugin = plugin;
         this.handle = handle;
         this.tickerTask = tickerTask;
     }
@@ -61,17 +67,9 @@ public final class PaperDummyHandle implements DummyHandle {
 
     @Override
     public void applySkin(DummySkin skin) {
-        Player player = player();
-        com.destroystokyo.paper.profile.PlayerProfile profile = player.getPlayerProfile();
-        profile.removeProperty("textures");
-        if (skin.hasTexture()) {
-            ProfileProperty property = skin.signature().isBlank()
-                    ? new ProfileProperty("textures", skin.value())
-                    : new ProfileProperty("textures", skin.value(), skin.signature());
-            profile.setProperty(property);
-        }
-        player.setPlayerProfile(profile);
-        refreshPlayerInfo();
+        handle.gameProfile = PaperSkinSupport.createProfile(handle.getUUID(), handle.getGameProfile().name(), skin);
+        handle.updateOptionsNoEvents(PaperSkinSupport.withAllModelParts(handle.clientInformation()));
+        refreshSkinForViewers();
     }
 
     @Override
@@ -142,14 +140,76 @@ public final class PaperDummyHandle implements DummyHandle {
         }
     }
 
-    private void refreshPlayerInfo() {
-        var remove = new ClientboundPlayerInfoRemovePacket(List.of(handle.getUUID()));
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            if (online instanceof CraftPlayer craftPlayer && !online.getUniqueId().equals(handle.getUUID())) {
-                var add = ClientboundPlayerInfoUpdatePacket.createSinglePlayerInitializing(handle, listed && online.isListed(player()));
-                craftPlayer.getHandle().connection.send(remove);
-                craftPlayer.getHandle().connection.send(add);
+    private void refreshSkinForViewers() {
+        sendRemovePackets();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player().isOnline()) {
+                return;
             }
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.getUniqueId().equals(handle.getUUID())) {
+                    continue;
+                }
+                sendPlayerInfo(online, true);
+            }
+        }, 5L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player().isOnline()) {
+                return;
+            }
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.getUniqueId().equals(handle.getUUID())) {
+                    continue;
+                }
+                sendEntityPairingData(online);
+            }
+        }, 10L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (listed || !player().isOnline()) {
+                return;
+            }
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.getUniqueId().equals(handle.getUUID()) || !(online instanceof CraftPlayer craftPlayer)) {
+                    continue;
+                }
+                craftPlayer.getHandle().connection.send(ClientboundPlayerInfoUpdatePacket.updateListed(handle.getUUID(), false));
+            }
+        }, 50L);
+    }
+
+    private void sendPlayerInfo(Player viewer, boolean listed) {
+        if (viewer instanceof CraftPlayer craftPlayer) {
+            var add = ClientboundPlayerInfoUpdatePacket.createSinglePlayerInitializing(handle, listed);
+            craftPlayer.getHandle().connection.send(add);
         }
     }
+
+    private void sendEntityPairingData(Player viewer) {
+        if (!(viewer instanceof CraftPlayer craftPlayer)) {
+            return;
+        }
+        ServerEntity entityTracker = new ServerEntity(handle.level(), handle, 0, false, NoOpSynchronizer.INSTANCE, java.util.Set.of());
+        java.util.List<Packet<? super ClientGamePacketListener>> packets = new java.util.ArrayList<>();
+        entityTracker.sendPairingData(craftPlayer.getHandle(), packets::add);
+        if (!packets.isEmpty()) {
+            craftPlayer.getHandle().connection.send(new ClientboundBundlePacket(packets));
+        }
+    }
+
+    private enum NoOpSynchronizer implements ServerEntity.Synchronizer {
+        INSTANCE;
+
+        @Override
+        public void sendToTrackingPlayers(Packet<? super ClientGamePacketListener> packet) {
+        }
+
+        @Override
+        public void sendToTrackingPlayersAndSelf(Packet<? super ClientGamePacketListener> packet) {
+        }
+
+        @Override
+        public void sendToTrackingPlayersFiltered(Packet<? super ClientGamePacketListener> packet, java.util.function.Predicate<ServerPlayer> predicate) {
+        }
+    }
+
 }

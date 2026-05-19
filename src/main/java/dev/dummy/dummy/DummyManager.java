@@ -244,7 +244,6 @@ public final class DummyManager {
         DummyInstance dummy = require(name);
         dummy.skin(skin);
         dummy.handle().applySkin(skin);
-        refreshTabVisibility(dummy);
         sendProxyTabUpdate(dummy);
         save();
     }
@@ -352,16 +351,30 @@ public final class DummyManager {
             return;
         }
         if (dummy.settings().showInTab()) {
-            viewer.listPlayer(dummy.player());
+            safeListPlayer(viewer, dummy.player());
             return;
         }
-        viewer.listPlayer(dummy.player());
+        if (!safeListPlayer(viewer, dummy.player())) {
+            return;
+        }
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             DummyInstance current = get(dummy.name());
-            if (viewer.isOnline() && current != null && isActive(current) && !current.settings().showInTab()) {
+            if (viewer.isOnline() && current != null && isActive(current) && !current.settings().showInTab() && viewer.canSee(current.player())) {
                 viewer.unlistPlayer(current.player());
             }
         }, 40L);
+    }
+
+    private boolean safeListPlayer(Player viewer, Player target) {
+        if (!viewer.canSee(target)) {
+            return false;
+        }
+        try {
+            viewer.listPlayer(target);
+            return true;
+        } catch (IllegalStateException ignored) {
+            return false;
+        }
     }
 
     private void sendProxyTabUpdate(DummyInstance dummy) {

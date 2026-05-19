@@ -47,8 +47,8 @@ public final class PaperFakePlayerAdapter implements FakePlayerAdapter {
         CraftServer craftServer = (CraftServer) Bukkit.getServer();
         MinecraftServer server = craftServer.getServer();
         ServerLevel level = craftWorld.getHandle();
-        GameProfile profile = new GameProfile(request.uuid(), request.name());
-        ServerPlayer serverPlayer = new ServerPlayer(server, level, profile, ClientInformation.createDefault());
+        GameProfile profile = PaperSkinSupport.createProfile(request.uuid(), request.name(), request.skin());
+        ServerPlayer serverPlayer = new ServerPlayer(server, level, profile, PaperSkinSupport.withAllModelParts(ClientInformation.createDefault()));
         serverPlayer.absSnapTo(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
 
         Player player = serverPlayer.getBukkitEntity();
@@ -71,8 +71,7 @@ public final class PaperFakePlayerAdapter implements FakePlayerAdapter {
 
         DummyTicker ticker = new DummyTicker(serverPlayer);
         BukkitTask tickerTask = ticker.runTaskTimer(plugin, 0L, 1L);
-        PaperDummyHandle handle = new PaperDummyHandle(serverPlayer, tickerTask);
-        handle.applySkin(request.skin());
+        PaperDummyHandle handle = new PaperDummyHandle(plugin, serverPlayer, tickerTask);
         handle.applySettings(request.name(), request.settings());
         return handle;
     }
