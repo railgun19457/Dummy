@@ -1,5 +1,14 @@
 # 更新日志
 
+## 0.2.7 - 2026-05-20
+
+- 移除 `sprint` 动作，`move` 现在通过 `slow` / `walk` / `sprint` 或数值参数控制移动速度，并限制在正常疾跑速度以内。
+- 重构重复动作参数为 `repeat interval:<ticks> duration:<ticks>`，省略时使用动作默认周期；`jump` 循环会限制到完整跳跃周期。
+- 优化假人管理权限：普通玩家只能管理自己召唤的假人，`dummy.command.manage-all` 可管理全部假人。
+- `/dummy remove all` 改为移除当前玩家可管理的全部假人，不再使用单独的 `dummy.command.remove-all` 权限节点。
+- 修复切换 Tab 显示、换肤和重新进入服务器时假人可能不可见的问题，改为 packet-only 的 PlayerInfo/listed/实体同步状态机。
+- 延后玩家加入后的假人同步，减少客户端登录阶段丢弃假人实体包导致首次进服不可见的问题。
+
 ## 0.2.6 - 2026-05-19
 
 - 修复假人背包中 shift 快捷移动物品时可能无法正确移动的问题。

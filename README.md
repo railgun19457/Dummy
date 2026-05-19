@@ -47,7 +47,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `/dm` | `/dummy` 的别名 | `dummy.command` |
 | `/dummy spawn <name>` | 在当前位置召唤假人 | `dummy.command.spawn` |
 | `/dummy remove <name>` | 移除指定假人 | `dummy.command.remove` |
-| `/dummy remove all` | 移除全部假人 | `dummy.command.remove-all` |
+| `/dummy remove all` | 移除自己可管理的全部假人 | `dummy.command.remove` |
 | `/dummy list` | 查看当前假人列表 | `dummy.command.list` |
 | `/dummy reload` | 重载配置和语言文件 | `dummy.command.reload` |
 | `/dummy config <name> [key] [value]` | 打开配置 GUI 或修改假人配置 | `dummy.command.config` |
@@ -75,10 +75,9 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 - `lookat <x> <y> <z>` 看向指定方块坐标，支持 `~`、`~1`、`~-1`
 - `mine` 挖掘视线内方块
 - `mount` 骑乘或离开附近可骑乘实体
-- `move [speed]` 朝当前视线方向移动
+- `move [speed|slow|walk|sprint]` 朝当前视线方向移动，速度范围为 `0` 到正常疾跑速度，默认正常行走速度，速度/缓慢药水会额外叠加
 - `place` 使用主手方块对视线内目标方块进行放置
 - `sneak [toggle|on|off]` 切换潜行状态
-- `sprint [toggle|on|off]` 切换疾跑状态
 - `swap` 交换主手和副手物品
 - `use` 使用主手物品
 - `stop [action]` 停止全部动作或指定动作
@@ -87,11 +86,13 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 
 ```text
 /dummy actions bot attack
-/dummy actions bot attack repeat 20
-/dummy actions bot attack repeat 20 1200
-/dummy actions bot look entity repeat 5
+/dummy actions bot attack repeat interval:20
+/dummy actions bot attack repeat interval:20 duration:1200
+/dummy actions bot look entity repeat interval:5
 /dummy actions bot lookat ~ ~ ~5
-/dummy actions bot move 0.25 repeat 1 100
+/dummy actions bot move repeat
+/dummy actions bot move sprint repeat duration:100
+/dummy actions bot jump repeat
 /dummy actions bot stop
 /dummy actions bot stop attack
 ```
@@ -100,8 +101,9 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 
 - 未指定模式时执行一次。
 - `once` 表示单次执行。
-- `repeat <intervalTicks> [durationTicks]` 表示按 tick 间隔重复执行，可选持续时间。
-- 部分动作也支持后缀写法：`<action> <args...> repeat <intervalTicks> [durationTicks]`。
+- `repeat interval:<ticks> duration:<ticks>` 表示重复执行，`interval:` 和 `duration:` 均可省略。
+- 省略 `interval:` 时使用动作默认周期，例如 `move repeat` 为持续行走，`jump repeat` 为正常连续跳跃。
+- `jump` 的循环周期最短为一次完整跳跃所需的正常周期。
 - 重复动作默认会在假人死亡、移除、退出时暂停，并在同 UUID 假人重新出现后继续，可通过 `actions.preserve-on-lifecycle` 关闭。
 
 ## 权限
@@ -109,9 +111,9 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | 权限节点 | 说明 | 默认 |
 | --- | --- | --- |
 | `dummy.command` | 允许使用基础命令 | 所有玩家 |
+| `dummy.command.manage-all` | 允许管理其他玩家召唤的假人 | OP |
 | `dummy.command.spawn` | 允许召唤假人 | 所有玩家 |
 | `dummy.command.remove` | 允许移除单个假人 | 所有玩家 |
-| `dummy.command.remove-all` | 允许移除全部假人 | OP |
 | `dummy.command.list` | 允许查看假人列表 | 所有玩家 |
 | `dummy.command.reload` | 允许重载配置 | OP |
 | `dummy.command.config` | 允许修改假人配置 | 所有玩家 |
@@ -122,6 +124,8 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `dummy.command.tphere` | 允许将假人传送到当前位置 | 所有玩家 |
 | `dummy.command.tps` | 允许交换位置 | 所有玩家 |
 | `dummy.command.actions` | 允许控制假人动作 | 所有玩家 |
+
+普通玩家默认只能在列表、补全、配置、背包、传送、经验、动作和移除命令中操作自己召唤的假人。拥有 `dummy.command.manage-all` 的玩家可操作全部假人；`/dummy remove all` 会移除当前玩家可管理的全部假人。
 
 ## 配置概览
 

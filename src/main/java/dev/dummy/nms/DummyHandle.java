@@ -15,5 +15,9 @@ public interface DummyHandle {
 
     void applySkin(DummySkin skin);
 
+    void refreshForViewer(Player viewer, boolean listed);
+
+    void updateListedForViewer(Player viewer, boolean listed);
+
     void remove(Component reason);
 }

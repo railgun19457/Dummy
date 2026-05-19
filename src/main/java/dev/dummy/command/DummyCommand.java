@@ -27,12 +27,13 @@ public final class DummyCommand implements BasicCommand {
     );
     private static final List<String> CONFIG_KEYS = List.of("invulnerable", "collision", "ghost", "chunk-loader", "show-in-tab", "name-format");
     private static final List<String> ACTIONS = List.of(
-            "attack", "chat", "command", "drop", "hold", "jump", "look", "lookat", "mine", "mount", "move", "place", "sneak", "sprint", "swap", "use", "stop"
+            "attack", "chat", "command", "drop", "hold", "jump", "look", "lookat", "mine", "mount", "move", "place", "sneak", "swap", "use", "stop"
     );
     private static final List<String> MODE_ACTIONS = List.of("attack", "drop", "jump", "look", "mine", "move", "place", "use");
-    private static final List<String> TOGGLE_ACTIONS = List.of("sneak", "sprint");
+    private static final List<String> TOGGLE_ACTIONS = List.of("sneak");
     private static final List<String> LOOK_ARGS = List.of("north", "east", "south", "west", "entity");
     private static final List<String> TOGGLE_ARGS = List.of("toggle", "on", "off");
+    private static final List<String> REPEAT_OPTIONS = List.of("interval:", "duration:");
 
     private final DummyPlugin plugin;
     private final DummyManager dummyManager;
@@ -100,10 +101,10 @@ public final class DummyCommand implements BasicCommand {
             return removeSuggestions(source.getSender(), args[1]);
         }
         if (args.length == 2 && needsActiveDummyName(args[0])) {
-            return filter(dummyManager.activeNames(), args[1]);
+            return filter(dummyManager.activeNames(source.getSender()), args[1]);
         }
         if (args.length == 2 && needsDummyName(args[0])) {
-            return filter(dummyManager.names(), args[1]);
+            return filter(dummyManager.names(source.getSender()), args[1]);
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("config")) {
             return filter(CONFIG_KEYS, args[2]);
@@ -155,11 +156,11 @@ public final class DummyCommand implements BasicCommand {
         }
         String reason = i18n.tr("command.remove-reason", sender.getName());
         if (args[1].equalsIgnoreCase("all")) {
-            requirePermission(sender, "dummy.command.remove-all");
-            int removed = dummyManager.removeAll(reason);
+            int removed = dummyManager.removeAll(sender, reason);
             message(sender, "command.remove-all-success", NamedTextColor.GREEN, removed);
             return;
         }
+        requireManaged(sender, args[1]);
         boolean removed = dummyManager.remove(args[1], reason);
         if (removed) {
             message(sender, "command.remove-success", NamedTextColor.GREEN, args[1]);
@@ -170,7 +171,7 @@ public final class DummyCommand implements BasicCommand {
 
     private void list(CommandSender sender) {
         requirePermission(sender, "dummy.command.list");
-        List<String> names = dummyManager.names();
+        List<String> names = dummyManager.names(sender);
         if (names.isEmpty()) {
             message(sender, "command.list-empty", NamedTextColor.GRAY);
             return;
@@ -189,13 +190,14 @@ public final class DummyCommand implements BasicCommand {
         requirePermission(sender, "dummy.command.config");
         if (args.length == 2) {
             Player player = requirePlayer(sender);
-            guiListener.openConfigMenu(player, dummyManager.require(args[1]));
+            guiListener.openConfigMenu(player, requireManaged(sender, args[1]));
             return;
         }
         if (args.length < 4) {
             message(sender, "usage.config", NamedTextColor.YELLOW);
             return;
         }
+        requireManaged(sender, args[1]);
         String value = String.join(" ", Arrays.copyOfRange(args, 3, args.length));
         dummyManager.updateSettings(args[1], args[2].toLowerCase(Locale.ROOT), value);
         message(sender, "command.config-updated", NamedTextColor.GREEN, args[1], args[2], value);
@@ -207,7 +209,7 @@ public final class DummyCommand implements BasicCommand {
             message(sender, "usage.skin", NamedTextColor.YELLOW);
             return;
         }
-        dummyManager.require(args[1]);
+        requireManaged(sender, args[1]);
         switch (args[2].toLowerCase(Locale.ROOT)) {
             case "clear" -> {
                 if (args.length != 3) {
@@ -226,6 +228,12 @@ public final class DummyCommand implements BasicCommand {
                         message(sender, "command.skin-fetch-failed", NamedTextColor.RED, failureMessage(throwable));
                         return;
                     }
+                    try {
+                        requireManaged(sender, args[1]);
+                    } catch (LocalizedException ex) {
+                        message(sender, ex.key(), NamedTextColor.RED, ex.args());
+                        return;
+                    }
                     dummyManager.setSkin(args[1], skin);
                     message(sender, "command.skin-set-updated", NamedTextColor.GREEN, args[1], args[3]);
                 }));
@@ -241,6 +249,7 @@ public final class DummyCommand implements BasicCommand {
             message(sender, "usage.exp", NamedTextColor.YELLOW);
             return;
         }
+        requireManaged(sender, args[1]);
         boolean all = args[2].equalsIgnoreCase("all");
         int amount = all ? 0 : Integer.parseInt(args[2]);
         int transferred = dummyManager.transferExperience(args[1], player, all, amount);
@@ -254,7 +263,7 @@ public final class DummyCommand implements BasicCommand {
             message(sender, "usage.inv", NamedTextColor.YELLOW);
             return;
         }
-        guiListener.openDummyInventory(player, dummyManager.require(args[1]));
+        guiListener.openDummyInventory(player, requireManaged(sender, args[1]));
     }
 
     private void tpto(CommandSender sender, String[] args) {
@@ -264,6 +273,7 @@ public final class DummyCommand implements BasicCommand {
             message(sender, "usage.tpto", NamedTextColor.YELLOW);
             return;
         }
+        requireManaged(sender, args[1]);
         dummyManager.teleportPlayerToDummy(player, args[1]);
         message(sender, "command.tpto-success", NamedTextColor.GREEN, args[1]);
     }
@@ -275,6 +285,7 @@ public final class DummyCommand implements BasicCommand {
             message(sender, "usage.tphere", NamedTextColor.YELLOW);
             return;
         }
+        requireManaged(sender, args[1]);
         dummyManager.teleportDummy(args[1], player.getLocation());
         message(sender, "command.tphere-success", NamedTextColor.GREEN, args[1]);
     }
@@ -286,6 +297,7 @@ public final class DummyCommand implements BasicCommand {
             message(sender, "usage.tps", NamedTextColor.YELLOW);
             return;
         }
+        requireManaged(sender, args[1]);
         dummyManager.swap(player, args[1]);
         message(sender, "command.tps-success", NamedTextColor.GREEN, args[1]);
     }
@@ -296,7 +308,7 @@ public final class DummyCommand implements BasicCommand {
             message(sender, "usage.actions", NamedTextColor.YELLOW);
             return;
         }
-        DummyInstance dummy = dummyManager.require(args[1]);
+        DummyInstance dummy = requireManaged(sender, args[1]);
         String action = args[2].toLowerCase(Locale.ROOT);
         if (action.equals("stop")) {
             int stopped = actionService.stop(dummy, args.length >= 4 ? args[3] : null);
@@ -319,6 +331,14 @@ public final class DummyCommand implements BasicCommand {
         }
     }
 
+    private DummyInstance requireManaged(CommandSender sender, String name) {
+        DummyInstance dummy = dummyManager.require(name);
+        if (!dummyManager.canManage(sender, dummy)) {
+            throw new LocalizedException("error.not-dummy-owner", name);
+        }
+        return dummy;
+    }
+
     private List<String> filter(List<String> values, String prefix) {
         String normalized = prefix.toLowerCase(Locale.ROOT);
         return values.stream()
@@ -327,8 +347,8 @@ public final class DummyCommand implements BasicCommand {
     }
 
     private List<String> removeSuggestions(CommandSender sender, String prefix) {
-        List<String> names = new ArrayList<>(dummyManager.names());
-        if (sender.hasPermission("dummy.command.remove-all")) {
+        List<String> names = new ArrayList<>(dummyManager.names(sender));
+        if (sender.hasPermission("dummy.command.remove")) {
             names.add("all");
         }
         return filter(names, prefix);
@@ -358,21 +378,28 @@ public final class DummyCommand implements BasicCommand {
         }
         int repeatIndex = modeIndex(args, 3, "repeat");
         if (repeatIndex >= 3) {
-            if (args.length == repeatIndex + 2) {
-                return filter(List.of("1", "5", "10", "20"), args[repeatIndex + 1]);
-            }
-            if (args.length == repeatIndex + 3) {
-                return filter(List.of("20", "100", "200", "1200"), args[repeatIndex + 2]);
-            }
-            return List.of();
+            return repeatOptionSuggestions(args, repeatIndex);
         }
-        if (args[3].equalsIgnoreCase("once") && args.length == 5) {
-            return filter(actionArgumentSuggestions(action), args[4]);
+        if (args[3].equalsIgnoreCase("once")) {
+            return args.length == 5 ? filter(actionArgumentSuggestions(action), args[4]) : List.of();
         }
         if (supportsMode(action)) {
             return filter(List.of("repeat"), args[args.length - 1]);
         }
         return List.of();
+    }
+
+    private List<String> repeatOptionSuggestions(String[] args, int repeatIndex) {
+        List<String> values = new ArrayList<>(REPEAT_OPTIONS);
+        for (int i = repeatIndex + 1; i < args.length - 1; i++) {
+            String option = args[i].toLowerCase(Locale.ROOT);
+            if (option.startsWith("interval:")) {
+                values.remove("interval:");
+            } else if (option.startsWith("duration:")) {
+                values.remove("duration:");
+            }
+        }
+        return filter(values, args[args.length - 1]);
     }
 
     private boolean supportsMode(String action) {
@@ -381,42 +408,34 @@ public final class DummyCommand implements BasicCommand {
 
     private ActionRequest parseActionRequest(String action, String[] rawArgs) {
         if (!supportsMode(action)) {
-            return new ActionRequest(false, 20, -1, rawArgs);
+            return new ActionRequest(false, DummyActionService.defaultRepeatInterval(action), -1, rawArgs);
         }
-        if (rawArgs.length >= 1 && rawArgs[0].equalsIgnoreCase("once")) {
-            return new ActionRequest(false, 20, -1, DummyActionService.tail(rawArgs, 1));
-        }
-        if (rawArgs.length >= 1 && rawArgs[0].equalsIgnoreCase("repeat")) {
-            return parsePrefixRepeat(action, rawArgs);
+        int onceIndex = modeIndex(rawArgs, 0, "once");
+        if (onceIndex >= 0) {
+            String[] actionArgs = onceIndex == 0 ? DummyActionService.tail(rawArgs, 1) : Arrays.copyOfRange(rawArgs, 0, onceIndex);
+            return new ActionRequest(false, DummyActionService.defaultRepeatInterval(action), -1, actionArgs);
         }
 
         int repeatIndex = modeIndex(rawArgs, 0, "repeat");
         if (repeatIndex >= 0) {
-            return parseSuffixRepeat(rawArgs, repeatIndex);
+            return parseRepeat(action, rawArgs, repeatIndex);
         }
-        return new ActionRequest(false, 20, -1, rawArgs);
+        return new ActionRequest(false, DummyActionService.defaultRepeatInterval(action), -1, rawArgs);
     }
 
-    private ActionRequest parsePrefixRepeat(String action, String[] rawArgs) {
-        if (rawArgs.length <= 1) {
-            throw new LocalizedException("error.repeat-requires-interval");
-        }
-        int interval = parseInteger(rawArgs[1]);
+    private ActionRequest parseRepeat(String action, String[] rawArgs, int repeatIndex) {
+        int interval = DummyActionService.defaultRepeatInterval(action);
         int duration = -1;
-        String[] actionArgs = DummyActionService.tail(rawArgs, 2);
-        if (actionArgs.length == 1 && actionArgumentSuggestions(action).isEmpty() && isInteger(actionArgs[0])) {
-            duration = parseInteger(actionArgs[0]);
-            actionArgs = new String[0];
+        for (int i = repeatIndex + 1; i < rawArgs.length; i++) {
+            String option = rawArgs[i].toLowerCase(Locale.ROOT);
+            if (option.startsWith("interval:")) {
+                interval = parseRepeatOption(rawArgs[i], "interval:");
+            } else if (option.startsWith("duration:")) {
+                duration = parseRepeatOption(rawArgs[i], "duration:");
+            } else {
+                throw new LocalizedException("error.unknown-repeat-option", rawArgs[i]);
+            }
         }
-        return new ActionRequest(true, interval, duration, actionArgs);
-    }
-
-    private ActionRequest parseSuffixRepeat(String[] rawArgs, int repeatIndex) {
-        if (rawArgs.length <= repeatIndex + 1) {
-            throw new LocalizedException("error.repeat-requires-interval");
-        }
-        int interval = parseInteger(rawArgs[repeatIndex + 1]);
-        int duration = rawArgs.length > repeatIndex + 2 ? parseInteger(rawArgs[repeatIndex + 2]) : -1;
         return new ActionRequest(true, interval, duration, Arrays.copyOfRange(rawArgs, 0, repeatIndex));
     }
 
@@ -443,7 +462,7 @@ public final class DummyCommand implements BasicCommand {
             return List.of("0", "1", "2", "3", "4", "5", "6", "7", "8");
         }
         if (action.equals("move")) {
-            return List.of("0.1", "0.25", "0.5", "1.0");
+            return List.of("slow", "walk", "sprint");
         }
         return List.of();
     }
@@ -463,13 +482,16 @@ public final class DummyCommand implements BasicCommand {
         }
     }
 
-    private boolean isInteger(String value) {
-        try {
-            Integer.parseInt(value);
-            return true;
-        } catch (NumberFormatException ignored) {
-            return false;
+    private int parseRepeatOption(String option, String prefix) {
+        String value = option.substring(prefix.length());
+        if (value.isBlank()) {
+            throw new LocalizedException("error.repeat-option-value", prefix);
         }
+        int ticks = parseInteger(value);
+        if (ticks <= 0) {
+            throw new LocalizedException("error.invalid-number", value);
+        }
+        return ticks;
     }
 
     private void message(CommandSender sender, String key, NamedTextColor color, Object... args) {

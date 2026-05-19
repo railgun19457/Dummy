@@ -1,6 +1,7 @@
 error:
   command-failed: "命令执行失败：{0}"
   no-permission: "你没有权限：{0}"
+  not-dummy-owner: "你只能管理自己召唤的假人：{0}"
   player-only: "只有玩家可以使用这个命令。"
   player-only-current-location: "目前只有玩家可以在当前位置召唤假人。"
   dummy-not-found: "找不到假人：{0}"
@@ -29,7 +30,10 @@ error:
   place-failed: "放置失败，目标位置可能不可放置或被事件/保护插件拦截。"
   no-mountable-entity: "范围内没有可骑乘实体。"
   action-requires-arguments: "该动作需要额外参数。"
-  repeat-requires-interval: "repeat 需要间隔 tick 参数。"
+  repeat-option-value: "repeat 参数需要填写数值：{0}"
+  unknown-repeat-option: "未知 repeat 参数：{0}"
+  move-speed-argument: "move 最多只能填写一个速度参数。"
+  move-speed-range: "move 速度必须在 0 到正常疾跑速度之间（最大 {0}）。"
   toggle-argument: "该动作只接受 toggle、on 或 off。"
   craft-world-required: "召唤世界不是 CraftWorld。"
 
@@ -45,7 +49,7 @@ usage:
   tpto: "用法：/dummy tpto <name>"
   tphere: "用法：/dummy tphere <name>"
   tps: "用法：/dummy tps <name>"
-  actions: "用法：/dummy actions <name> <action> [once|repeat] ...，也可写为 <action> <args...> repeat <intervalTicks> [durationTicks]"
+  actions: "用法：/dummy actions <name> <action> [args...] [once|repeat interval:<ticks> duration:<ticks>]"
 
 command:
   spawn-success: "已召唤假人 {0}。"

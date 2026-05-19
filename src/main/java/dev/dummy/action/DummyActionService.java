@@ -28,11 +28,17 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 import net.minecraft.core.BlockPos;
 
 public final class DummyActionService {
+    private static final double NORMAL_WALK_SPEED = 0.215D;
+    private static final double NORMAL_SPRINT_SPEED = 0.280D;
+    private static final int NORMAL_JUMP_INTERVAL_TICKS = 12;
+
     private final DummyPlugin plugin;
     private final DummyManager dummyManager;
     private final Map<UUID, Map<String, BukkitTask>> tasks = new LinkedHashMap<>();
@@ -58,7 +64,7 @@ public final class DummyActionService {
 
         stop(dummy, normalized);
         UUID uuid = dummy.uuid();
-        int interval = Math.max(1, intervalTicks);
+        int interval = Math.max(minimumRepeatInterval(normalized), intervalTicks);
         int[] elapsed = {0};
         BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             DummyInstance current = dummyManager.get(uuid);
@@ -121,6 +127,18 @@ public final class DummyActionService {
         return Arrays.copyOfRange(args, from, args.length);
     }
 
+    public static int defaultRepeatInterval(String action) {
+        return switch (action.toLowerCase(Locale.ROOT)) {
+            case "mine", "move" -> 1;
+            case "jump" -> NORMAL_JUMP_INTERVAL_TICKS;
+            default -> 20;
+        };
+    }
+
+    public static int minimumRepeatInterval(String action) {
+        return action.equalsIgnoreCase("jump") ? NORMAL_JUMP_INTERVAL_TICKS : 1;
+    }
+
     private void perform(DummyInstance dummy, String action, String[] args) {
         Player player = dummy.player();
         switch (action) {
@@ -137,7 +155,6 @@ public final class DummyActionService {
             case "move" -> move(player, args);
             case "place" -> place(player);
             case "sneak" -> player.setSneaking(parseToggle(args, player.isSneaking()));
-            case "sprint" -> player.setSprinting(parseToggle(args, player.isSprinting()));
             case "swap" -> swapHands(player);
             case "use" -> use(player);
             default -> throw new LocalizedException("error.unknown-action", action);
@@ -168,6 +185,9 @@ public final class DummyActionService {
     }
 
     private void jump(Player player) {
+        if (!player.isOnGround()) {
+            return;
+        }
         Vector velocity = player.getVelocity();
         velocity.setY(Math.max(velocity.getY(), 0.42D));
         player.setVelocity(velocity);
@@ -252,12 +272,51 @@ public final class DummyActionService {
     }
 
     private void move(Player player, String[] args) {
-        double speed = args.length == 0 ? 0.25D : Double.parseDouble(args[0]);
+        if (args.length > 1) {
+            throw new LocalizedException("error.move-speed-argument");
+        }
+        double speed = (args.length == 0 ? NORMAL_WALK_SPEED : parseMoveSpeed(args[0])) * movementPotionMultiplier(player);
         Vector direction = player.getLocation().getDirection().setY(0.0D);
         if (direction.lengthSquared() == 0.0D) {
             return;
         }
         player.setVelocity(direction.normalize().multiply(speed).setY(player.getVelocity().getY()));
+    }
+
+    private double parseMoveSpeed(String raw) {
+        String normalized = raw.toLowerCase(Locale.ROOT);
+        if (normalized.equals("slow")) {
+            return 0.1D;
+        }
+        if (normalized.equals("walk")) {
+            return NORMAL_WALK_SPEED;
+        }
+        if (normalized.equals("sprint")) {
+            return NORMAL_SPRINT_SPEED;
+        }
+        double speed;
+        try {
+            speed = Double.parseDouble(raw);
+        } catch (NumberFormatException ignored) {
+            throw new LocalizedException("error.invalid-number", raw);
+        }
+        if (speed < 0.0D || speed > NORMAL_SPRINT_SPEED) {
+            throw new LocalizedException("error.move-speed-range", String.format(Locale.ROOT, "%.3f", NORMAL_SPRINT_SPEED));
+        }
+        return speed;
+    }
+
+    private double movementPotionMultiplier(Player player) {
+        double multiplier = 1.0D;
+        PotionEffect speed = player.getPotionEffect(PotionEffectType.SPEED);
+        if (speed != null) {
+            multiplier *= 1.0D + 0.2D * (speed.getAmplifier() + 1);
+        }
+        PotionEffect slowness = player.getPotionEffect(PotionEffectType.SLOWNESS);
+        if (slowness != null) {
+            multiplier *= Math.max(0.0D, 1.0D - 0.15D * (slowness.getAmplifier() + 1));
+        }
+        return multiplier;
     }
 
     private void place(Player player) {
@@ -330,7 +389,7 @@ public final class DummyActionService {
     }
 
     private void resetAll(DummyInstance dummy) {
-        for (String action : java.util.List.of("jump", "move", "mine", "sneak", "sprint", "mount", "use")) {
+        for (String action : java.util.List.of("jump", "move", "mine", "sneak", "mount", "use")) {
             resetAction(dummy, action);
         }
     }
@@ -342,7 +401,6 @@ public final class DummyActionService {
             case "move" -> player.setVelocity(player.getVelocity().setX(0.0D).setZ(0.0D));
             case "mine" -> mineStates.remove(player.getUniqueId());
             case "sneak" -> player.setSneaking(false);
-            case "sprint" -> player.setSprinting(false);
             case "mount" -> player.leaveVehicle();
             case "use" -> player.clearActiveItem();
             default -> {

@@ -33,6 +33,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 public final class DummyManager {
     public static final String PROXY_TAB_CHANNEL = "proxytab:virtual_players";
+    public static final String MANAGE_ALL_PERMISSION = "dummy.command.manage-all";
 
     private static final Pattern NAME_PATTERN = Pattern.compile("[A-Za-z0-9_]{3,16}");
     private static final int PROXY_TAB_PROTOCOL_VERSION = 1;
@@ -63,6 +64,9 @@ public final class DummyManager {
         enforceSpawnLimits(sender);
         DummyRecord removed = plugin.getConfig().getBoolean("storage.keep-removed-data", true) ? storage.loadRemoved(name) : null;
         if (removed != null) {
+            if (!canManage(sender, removed)) {
+                throw new LocalizedException("error.not-dummy-owner", name);
+            }
             DummyInstance dummy = spawn(
                     sender,
                     removed.uuid(),
@@ -99,35 +103,29 @@ public final class DummyManager {
     }
 
     public boolean remove(String name, String reason) {
-        DummyInstance dummy = dummiesByName.remove(normalize(name));
+        DummyInstance dummy = get(name);
         if (dummy == null) {
             return false;
         }
-        releaseChunkTicket(dummy);
-        dropInventoryIfConfigured(dummy);
-        storage.saveRemoved(dummy);
-        dummiesByUuid.remove(dummy.uuid());
-        sendProxyTabRemove(dummy);
-        dummy.handle().remove(Component.text("[Dummy] " + reason));
-        broadcastQuit(dummy);
-        save();
+        removeDummy(dummy, reason, true);
         return true;
     }
 
     public int removeAll(String reason) {
+        return removeAll(Bukkit.getConsoleSender(), reason);
+    }
+
+    public int removeAll(CommandSender sender, String reason) {
         List<DummyInstance> snapshot = new ArrayList<>(dummiesByName.values());
+        int removed = 0;
         for (DummyInstance dummy : snapshot) {
-            releaseChunkTicket(dummy);
-            dropInventoryIfConfigured(dummy);
-            storage.saveRemoved(dummy);
-            sendProxyTabRemove(dummy);
-            dummy.handle().remove(Component.text("[Dummy] " + reason));
-            broadcastQuit(dummy);
+            if (canManage(sender, dummy)) {
+                removeDummy(dummy, reason, false);
+                removed++;
+            }
         }
-        dummiesByName.clear();
-        dummiesByUuid.clear();
         save();
-        return snapshot.size();
+        return removed;
     }
 
     public void shutdown(String reason) {
@@ -173,11 +171,44 @@ public final class DummyManager {
         return all().stream().map(DummyInstance::name).toList();
     }
 
+    public List<String> names(CommandSender sender) {
+        return all().stream()
+                .filter(dummy -> canManage(sender, dummy))
+                .map(DummyInstance::name)
+                .toList();
+    }
+
     public List<String> activeNames() {
         return all().stream()
                 .filter(this::isActive)
                 .map(DummyInstance::name)
                 .toList();
+    }
+
+    public List<String> activeNames(CommandSender sender) {
+        return all().stream()
+                .filter(this::isActive)
+                .filter(dummy -> canManage(sender, dummy))
+                .map(DummyInstance::name)
+                .toList();
+    }
+
+    public boolean canManage(CommandSender sender, DummyInstance dummy) {
+        return canManage(sender, dummy.creatorUuid());
+    }
+
+    public boolean canManage(CommandSender sender, DummyRecord record) {
+        return canManage(sender, record.creatorUuid());
+    }
+
+    private boolean canManage(CommandSender sender, UUID creatorUuid) {
+        if (!(sender instanceof Player player)) {
+            return true;
+        }
+        if (player.getUniqueId().equals(creatorUuid)) {
+            return true;
+        }
+        return sender.hasPermission(MANAGE_ALL_PERMISSION);
     }
 
     public DummyInstance get(String name) {
@@ -234,7 +265,9 @@ public final class DummyManager {
         dummy.settings(settings);
         dummy.handle().applySettings(dummy.name(), settings);
         updateChunkTicket(dummy);
-        refreshTabVisibility(dummy);
+        if (key.equals("show-in-tab") || key.equals("name-format")) {
+            updateTabVisibility(dummy);
+        }
         sendProxyTabUpdate(dummy);
         save();
         return settings;
@@ -295,6 +328,20 @@ public final class DummyManager {
         return dummy;
     }
 
+    private void removeDummy(DummyInstance dummy, String reason, boolean save) {
+        releaseChunkTicket(dummy);
+        dropInventoryIfConfigured(dummy);
+        storage.saveRemoved(dummy);
+        dummiesByName.remove(normalize(dummy.name()));
+        dummiesByUuid.remove(dummy.uuid());
+        sendProxyTabRemove(dummy);
+        dummy.handle().remove(Component.text("[Dummy] " + reason));
+        broadcastQuit(dummy);
+        if (save) {
+            save();
+        }
+    }
+
     private DummyInstance spawn(
             CommandSender sender,
             UUID uuid,
@@ -346,35 +393,20 @@ public final class DummyManager {
         }
     }
 
+    private void updateTabVisibility(DummyInstance dummy) {
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            if (viewer.getUniqueId().equals(dummy.uuid()) || isDummy(viewer)) {
+                continue;
+            }
+            dummy.handle().updateListedForViewer(viewer, dummy.settings().showInTab());
+        }
+    }
+
     private void applyTabVisibility(Player viewer, DummyInstance dummy) {
         if (viewer.getUniqueId().equals(dummy.uuid()) || isDummy(viewer)) {
             return;
         }
-        if (dummy.settings().showInTab()) {
-            safeListPlayer(viewer, dummy.player());
-            return;
-        }
-        if (!safeListPlayer(viewer, dummy.player())) {
-            return;
-        }
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            DummyInstance current = get(dummy.name());
-            if (viewer.isOnline() && current != null && isActive(current) && !current.settings().showInTab() && viewer.canSee(current.player())) {
-                viewer.unlistPlayer(current.player());
-            }
-        }, 40L);
-    }
-
-    private boolean safeListPlayer(Player viewer, Player target) {
-        if (!viewer.canSee(target)) {
-            return false;
-        }
-        try {
-            viewer.listPlayer(target);
-            return true;
-        } catch (IllegalStateException ignored) {
-            return false;
-        }
+        dummy.handle().refreshForViewer(viewer, dummy.settings().showInTab());
     }
 
     private void sendProxyTabUpdate(DummyInstance dummy) {

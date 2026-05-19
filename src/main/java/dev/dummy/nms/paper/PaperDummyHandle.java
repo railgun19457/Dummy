@@ -4,7 +4,10 @@ import dev.dummy.DummyPlugin;
 import dev.dummy.dummy.DummySettings;
 import dev.dummy.dummy.DummySkin;
 import dev.dummy.nms.DummyHandle;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -25,12 +28,19 @@ import org.bukkit.scheduler.BukkitTask;
 
 public final class PaperDummyHandle implements DummyHandle {
     private static final String NO_COLLISION_TEAM = "dummy_no_collision";
+    private static final long PROFILE_TO_ENTITY_DELAY_TICKS = 10L;
+    private static final long PROFILE_REPLACE_DELAY_TICKS = 20L;
+    private static final long HIDE_TAB_DELAY_TICKS = 40L;
 
     private final DummyPlugin plugin;
     private final ServerPlayer handle;
     private final BukkitTask tickerTask;
+    private final Map<UUID, Long> viewerEntityGenerations = new LinkedHashMap<>();
+    private final Map<UUID, Long> viewerTabGenerations = new LinkedHashMap<>();
     private boolean removed;
     private boolean listed = true;
+    private long entityRefreshGeneration;
+    private long tabRefreshGeneration;
 
     public PaperDummyHandle(DummyPlugin plugin, ServerPlayer handle, BukkitTask tickerTask) {
         this.plugin = plugin;
@@ -73,12 +83,56 @@ public final class PaperDummyHandle implements DummyHandle {
     }
 
     @Override
+    public void refreshForViewer(Player viewer, boolean listed) {
+        if (viewer.getUniqueId().equals(handle.getUUID())) {
+            return;
+        }
+        long entityGeneration = nextEntityGeneration(viewer);
+        long tabGeneration = nextTabGeneration(viewer);
+        sendRemoveEntityPacket(viewer);
+        sendPlayerInfo(viewer, true);
+        runIfCurrentEntity(viewer, entityGeneration, PROFILE_TO_ENTITY_DELAY_TICKS, () -> sendEntityPairingData(viewer));
+        if (!listed) {
+            runIfCurrentTab(viewer, tabGeneration, HIDE_TAB_DELAY_TICKS, () -> sendListed(viewer, false));
+        }
+    }
+
+    @Override
+    public void updateListedForViewer(Player viewer, boolean listed) {
+        if (viewer.getUniqueId().equals(handle.getUUID())) {
+            return;
+        }
+        nextTabGeneration(viewer);
+        if (listed) {
+            sendPlayerInfo(viewer, true);
+            return;
+        }
+        sendListed(viewer, false);
+    }
+
+    private void refreshProfileForViewer(Player viewer, boolean listed) {
+        if (viewer.getUniqueId().equals(handle.getUUID())) {
+            return;
+        }
+        long entityGeneration = nextEntityGeneration(viewer);
+        long tabGeneration = nextTabGeneration(viewer);
+        sendRemovePackets(viewer);
+        sendPlayerInfo(viewer, true);
+        runIfCurrentEntity(viewer, entityGeneration, PROFILE_REPLACE_DELAY_TICKS, () -> sendEntityPairingData(viewer));
+        if (!listed) {
+            runIfCurrentTab(viewer, tabGeneration, PROFILE_REPLACE_DELAY_TICKS + HIDE_TAB_DELAY_TICKS, () -> sendListed(viewer, false));
+        }
+    }
+
+    @Override
     public void remove(Component reason) {
         if (removed) {
             return;
         }
         removed = true;
         tickerTask.cancel();
+        viewerEntityGenerations.clear();
+        viewerTabGenerations.clear();
         Player player = player();
         removeCollisionRule(player);
         sendRemovePackets();
@@ -125,6 +179,20 @@ public final class PaperDummyHandle implements DummyHandle {
         }
     }
 
+    private void sendRemovePackets(Player viewer) {
+        if (!(viewer instanceof CraftPlayer craftPlayer)) {
+            return;
+        }
+        sendRemoveEntityPacket(viewer);
+        craftPlayer.getHandle().connection.send(new ClientboundPlayerInfoRemovePacket(List.of(handle.getUUID())));
+    }
+
+    private void sendRemoveEntityPacket(Player viewer) {
+        if (viewer instanceof CraftPlayer craftPlayer) {
+            craftPlayer.getHandle().connection.send(new ClientboundRemoveEntitiesPacket(handle.getId()));
+        }
+    }
+
     private void sendRemoveEntityPacket() {
         var removeEntity = new ClientboundRemoveEntitiesPacket(handle.getId());
         for (Player online : Bukkit.getOnlinePlayers()) {
@@ -141,46 +209,21 @@ public final class PaperDummyHandle implements DummyHandle {
     }
 
     private void refreshSkinForViewers() {
-        sendRemovePackets();
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (!player().isOnline()) {
-                return;
-            }
-            for (Player online : Bukkit.getOnlinePlayers()) {
-                if (online.getUniqueId().equals(handle.getUUID())) {
-                    continue;
-                }
-                sendPlayerInfo(online, true);
-            }
-        }, 5L);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (!player().isOnline()) {
-                return;
-            }
-            for (Player online : Bukkit.getOnlinePlayers()) {
-                if (online.getUniqueId().equals(handle.getUUID())) {
-                    continue;
-                }
-                sendEntityPairingData(online);
-            }
-        }, 10L);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (listed || !player().isOnline()) {
-                return;
-            }
-            for (Player online : Bukkit.getOnlinePlayers()) {
-                if (online.getUniqueId().equals(handle.getUUID()) || !(online instanceof CraftPlayer craftPlayer)) {
-                    continue;
-                }
-                craftPlayer.getHandle().connection.send(ClientboundPlayerInfoUpdatePacket.updateListed(handle.getUUID(), false));
-            }
-        }, 50L);
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            refreshProfileForViewer(online, listed);
+        }
     }
 
     private void sendPlayerInfo(Player viewer, boolean listed) {
         if (viewer instanceof CraftPlayer craftPlayer) {
             var add = ClientboundPlayerInfoUpdatePacket.createSinglePlayerInitializing(handle, listed);
             craftPlayer.getHandle().connection.send(add);
+        }
+    }
+
+    private void sendListed(Player viewer, boolean listed) {
+        if (viewer instanceof CraftPlayer craftPlayer) {
+            craftPlayer.getHandle().connection.send(ClientboundPlayerInfoUpdatePacket.updateListed(handle.getUUID(), listed));
         }
     }
 
@@ -194,6 +237,39 @@ public final class PaperDummyHandle implements DummyHandle {
         if (!packets.isEmpty()) {
             craftPlayer.getHandle().connection.send(new ClientboundBundlePacket(packets));
         }
+    }
+
+    private long nextEntityGeneration(Player viewer) {
+        long generation = ++entityRefreshGeneration;
+        viewerEntityGenerations.put(viewer.getUniqueId(), generation);
+        return generation;
+    }
+
+    private long nextTabGeneration(Player viewer) {
+        long generation = ++tabRefreshGeneration;
+        viewerTabGenerations.put(viewer.getUniqueId(), generation);
+        return generation;
+    }
+
+    private void runIfCurrentEntity(Player viewer, long generation, long delayTicks, Runnable task) {
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!removed && player().isOnline() && viewer.isOnline() && isCurrent(viewerEntityGenerations, viewer, generation)) {
+                task.run();
+            }
+        }, delayTicks);
+    }
+
+    private void runIfCurrentTab(Player viewer, long generation, long delayTicks, Runnable task) {
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!removed && player().isOnline() && viewer.isOnline() && isCurrent(viewerTabGenerations, viewer, generation)) {
+                task.run();
+            }
+        }, delayTicks);
+    }
+
+    private boolean isCurrent(Map<UUID, Long> generations, Player viewer, long generation) {
+        Long current = generations.get(viewer.getUniqueId());
+        return current != null && current == generation;
     }
 
     private enum NoOpSynchronizer implements ServerEntity.Synchronizer {

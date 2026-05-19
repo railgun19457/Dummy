@@ -1,6 +1,7 @@
 error:
   command-failed: "Command failed: {0}"
   no-permission: "You do not have permission: {0}"
+  not-dummy-owner: "You can only manage dummies you spawned: {0}"
   player-only: "Only players can use this command."
   player-only-current-location: "Only players can spawn a dummy at the current location for now."
   dummy-not-found: "Dummy not found: {0}"
@@ -29,7 +30,10 @@ error:
   place-failed: "Placement failed; the target may not be placeable or an event/protection plugin blocked it."
   no-mountable-entity: "No mountable entity in range."
   action-requires-arguments: "Action requires additional arguments."
-  repeat-requires-interval: "repeat requires an interval in ticks."
+  repeat-option-value: "repeat option requires a value: {0}"
+  unknown-repeat-option: "Unknown repeat option: {0}"
+  move-speed-argument: "move accepts at most one speed argument."
+  move-speed-range: "move speed must be between 0 and normal sprint speed (max {0})."
   toggle-argument: "This action only accepts toggle, on, or off."
   craft-world-required: "Spawn world is not a CraftWorld."
 
@@ -45,7 +49,7 @@ usage:
   tpto: "Usage: /dummy tpto <name>"
   tphere: "Usage: /dummy tphere <name>"
   tps: "Usage: /dummy tps <name>"
-  actions: "Usage: /dummy actions <name> <action> [once|repeat] ..., or <action> <args...> repeat <intervalTicks> [durationTicks]"
+  actions: "Usage: /dummy actions <name> <action> [args...] [once|repeat interval:<ticks> duration:<ticks>]"
 
 command:
   spawn-success: "Spawned dummy {0}."

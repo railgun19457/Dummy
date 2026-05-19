@@ -11,6 +11,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 public final class DummyLifecycleListener implements Listener {
+    private static final long JOIN_DUMMY_SYNC_DELAY_TICKS = 20L;
+
     private final DummyPlugin plugin;
     private final DummyManager dummyManager;
     private final DummyActionService actionService;
@@ -39,7 +41,7 @@ public final class DummyLifecycleListener implements Listener {
                 dummyManager.applyTabVisibility(event.getPlayer());
                 dummyManager.syncProxyTab();
             }
-        }, 1L);
+        }, JOIN_DUMMY_SYNC_DELAY_TICKS);
     }
 
     @EventHandler

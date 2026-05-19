@@ -47,7 +47,7 @@ Dummy is a fake player plugin for modern Paper servers. It creates real server-s
 | `/dm` | Alias of `/dummy` | `dummy.command` |
 | `/dummy spawn <name>` | Spawns a dummy at your current location | `dummy.command.spawn` |
 | `/dummy remove <name>` | Removes one dummy | `dummy.command.remove` |
-| `/dummy remove all` | Removes all dummies | `dummy.command.remove-all` |
+| `/dummy remove all` | Removes all manageable dummies | `dummy.command.remove` |
 | `/dummy list` | Lists active dummies | `dummy.command.list` |
 | `/dummy reload` | Reloads config and language files | `dummy.command.reload` |
 | `/dummy config <name> [key] [value]` | Opens the config GUI or updates dummy settings | `dummy.command.config` |
@@ -75,10 +75,9 @@ Available actions:
 - `lookat <x> <y> <z>` Looks at a block position, supports `~`, `~1`, `~-1`
 - `mine` Mines the looked-at block
 - `mount` Mounts or dismounts a nearby mountable entity
-- `move [speed]` Moves toward the current look direction
+- `move [speed|slow|walk|sprint]` Moves toward the current look direction; speed must be between `0` and normal sprint speed, defaults to normal walk speed, and speed/slowness potions stack on top
 - `place` Places the main-hand block against the looked-at block
 - `sneak [toggle|on|off]` Toggles or sets sneaking
-- `sprint [toggle|on|off]` Toggles or sets sprinting
 - `swap` Swaps main-hand and offhand items
 - `use` Uses the main-hand item
 - `stop [action]` Stops all actions or one specific action
@@ -87,11 +86,13 @@ Available actions:
 
 ```text
 /dummy actions bot attack
-/dummy actions bot attack repeat 20
-/dummy actions bot attack repeat 20 1200
-/dummy actions bot look entity repeat 5
+/dummy actions bot attack repeat interval:20
+/dummy actions bot attack repeat interval:20 duration:1200
+/dummy actions bot look entity repeat interval:5
 /dummy actions bot lookat ~ ~ ~5
-/dummy actions bot move 0.25 repeat 1 100
+/dummy actions bot move repeat
+/dummy actions bot move sprint repeat duration:100
+/dummy actions bot jump repeat
 /dummy actions bot stop
 /dummy actions bot stop attack
 ```
@@ -100,8 +101,9 @@ Action mode notes:
 
 - If no mode is specified, the action runs once.
 - `once` runs the action once.
-- `repeat <intervalTicks> [durationTicks]` repeats the action at a tick interval, with an optional duration.
-- Some actions also support suffix syntax: `<action> <args...> repeat <intervalTicks> [durationTicks]`.
+- `repeat interval:<ticks> duration:<ticks>` repeats the action; both `interval:` and `duration:` are optional.
+- If `interval:` is omitted, the action default is used, for example `move repeat` is continuous walking and `jump repeat` is normal continuous jumping.
+- `jump` repeat intervals are never shorter than one complete normal jump cycle.
 - Repeated actions pause by default when a dummy dies, is removed, or quits, and continue when the same UUID dummy appears again. Disable this with `actions.preserve-on-lifecycle`.
 
 ## Permissions
@@ -109,9 +111,9 @@ Action mode notes:
 | Permission | Description | Default |
 | --- | --- | --- |
 | `dummy.command` | Allows using the base command | All players |
+| `dummy.command.manage-all` | Allows managing dummies spawned by other players | OP |
 | `dummy.command.spawn` | Allows spawning dummies | All players |
 | `dummy.command.remove` | Allows removing one dummy | All players |
-| `dummy.command.remove-all` | Allows removing all dummies | OP |
 | `dummy.command.list` | Allows listing dummies | All players |
 | `dummy.command.reload` | Allows reloading config | OP |
 | `dummy.command.config` | Allows changing dummy settings | All players |
@@ -122,6 +124,8 @@ Action mode notes:
 | `dummy.command.tphere` | Allows teleporting dummies to you | All players |
 | `dummy.command.tps` | Allows swapping positions | All players |
 | `dummy.command.actions` | Allows controlling dummy actions | All players |
+
+Regular players can only list, complete, configure, inventory, teleport, transfer experience, run actions, and remove dummies they spawned. Players with `dummy.command.manage-all` can operate on all dummies; `/dummy remove all` removes every dummy the sender can manage.
 
 ## Configuration Overview
 

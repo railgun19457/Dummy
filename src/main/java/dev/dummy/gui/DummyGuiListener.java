@@ -6,6 +6,7 @@ import dev.dummy.dummy.DummyManager;
 import dev.dummy.dummy.DummySettings;
 import dev.dummy.i18n.I18n;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -45,7 +46,11 @@ public final class DummyGuiListener implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getInventory().getHolder() instanceof DummyInventoryHolder) {
+        if (event.getInventory().getHolder() instanceof DummyInventoryHolder holder) {
+            if (!(event.getWhoClicked() instanceof Player player) || !ensureCanManage(player, holder.dummyName())) {
+                event.setCancelled(true);
+                return;
+            }
             if (event.isShiftClick()) {
                 handleDummyInventoryShiftClick(event);
                 return;
@@ -68,6 +73,10 @@ public final class DummyGuiListener implements Listener {
             player.closeInventory();
             return;
         }
+        if (!ensureCanManage(player, dummy)) {
+            player.closeInventory();
+            return;
+        }
 
         switch (event.getRawSlot()) {
             case 10 -> Bukkit.getScheduler().runTask(plugin, () -> openDummyInventory(player, dummy));
@@ -83,7 +92,11 @@ public final class DummyGuiListener implements Listener {
 
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (!(event.getInventory().getHolder() instanceof DummyInventoryHolder)) {
+        if (!(event.getInventory().getHolder() instanceof DummyInventoryHolder holder)) {
+            return;
+        }
+        if (!(event.getWhoClicked() instanceof Player player) || !ensureCanManage(player, holder.dummyName())) {
+            event.setCancelled(true);
             return;
         }
         int topSize = event.getInventory().getSize();
@@ -104,11 +117,17 @@ public final class DummyGuiListener implements Listener {
         if (dummy == null) {
             return;
         }
+        if (event.getPlayer() instanceof Player player && !dummyManager.canManage(player, dummy)) {
+            return;
+        }
         syncDummyInventory(event.getInventory(), dummy);
         dummyManager.save();
     }
 
     public void openDummyInventory(Player viewer, DummyInstance dummy) {
+        if (!ensureCanManage(viewer, dummy)) {
+            return;
+        }
         DummyInventoryHolder holder = new DummyInventoryHolder(dummy.name());
         Inventory inventory = Bukkit.createInventory(holder, 54, i18n.tr("gui.dummy-inventory-title", dummy.name()));
         holder.inventory(inventory);
@@ -142,11 +161,17 @@ public final class DummyGuiListener implements Listener {
     }
 
     private void toggle(Player viewer, DummyInstance dummy, String key, boolean currentValue) {
+        if (!ensureCanManage(viewer, dummy)) {
+            return;
+        }
         dummyManager.updateSettings(dummy.name(), key, Boolean.toString(!currentValue));
         openConfigMenu(viewer, dummyManager.require(dummy.name()));
     }
 
     public void openConfigMenu(Player viewer, DummyInstance dummy) {
+        if (!ensureCanManage(viewer, dummy)) {
+            return;
+        }
         DummyMenuHolder holder = new DummyMenuHolder(dummy.name());
         Inventory inventory = Bukkit.createInventory(holder, 27, i18n.tr("gui.title", dummy.name()));
         holder.inventory(inventory);
@@ -158,6 +183,23 @@ public final class DummyGuiListener implements Listener {
         inventory.setItem(15, toggleItem("gui.show-in-tab", settings.showInTab()));
         inventory.setItem(16, toggleItem("gui.ghost", settings.ghost()));
         viewer.openInventory(inventory);
+    }
+
+    private boolean ensureCanManage(Player viewer, String name) {
+        DummyInstance dummy = dummyManager.get(name);
+        if (dummy == null) {
+            viewer.closeInventory();
+            return false;
+        }
+        return ensureCanManage(viewer, dummy);
+    }
+
+    private boolean ensureCanManage(Player viewer, DummyInstance dummy) {
+        if (dummyManager.canManage(viewer, dummy)) {
+            return true;
+        }
+        viewer.sendMessage(i18n.component("error.not-dummy-owner", NamedTextColor.RED, dummy.name()));
+        return false;
     }
 
     private ItemStack toggleItem(String nameKey, boolean enabled) {

@@ -9,15 +9,15 @@ permissions:
   dummy.command:
     description: Allows using the base dummy command.
     default: true
+  dummy.command.manage-all:
+    description: Allows managing dummy players created by other players.
+    default: op
   dummy.command.spawn:
     description: Allows spawning dummy players.
     default: true
   dummy.command.remove:
     description: Allows removing dummy players.
     default: true
-  dummy.command.remove-all:
-    description: Allows removing all dummy players.
-    default: op
   dummy.command.list:
     description: Allows listing dummy players.
     default: true
