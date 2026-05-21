@@ -54,7 +54,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `/dummy config <name> [key] [value]` | 打开配置 GUI 或修改假人配置 | `dummy.command.config` |
 | `/dummy skin <name> set <playerName>` | 使用指定正版玩家皮肤 | `dummy.command.skin` |
 | `/dummy skin <name> clear` | 清除假人皮肤 | `dummy.command.skin` |
-| `/dummy exp <name> <amount|all>` | 将假人经验转移给执行命令的玩家 | `dummy.command.exp` |
+| `/dummy exp <name> <amount\|all>` |将假人经验转移给执行命令的玩家 | `dummy.command.exp` |
 | `/dummy inv <name>` | 打开假人背包、装备栏和副手栏 | `dummy.command.inv` |
 | `/dummy tpto <name>` | 将玩家传送到假人处 | `dummy.command.tpto` |
 | `/dummy tphere <name>` | 将假人传送到玩家当前位置 | `dummy.command.tphere` |
