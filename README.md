@@ -64,14 +64,15 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 
 可用动作：
 
-- `attack` 攻击视线或附近实体
+- `attack` 攻击当前锁定目标；没有锁定目标时攻击视线指向的可见实体，并受距离、冷却和视线遮挡限制；可用 `actions.attack.auto-target-nearest-visible` 开启最近可见实体 fallback
 - `chat <message>` 发送聊天消息
 - `command <command>` 以假人身份执行命令
 - `drop` 丢弃当前物品
 - `hold <0-8>` 切换快捷栏槽位
 - `jump` 跳跃
-- `look <yaw> <pitch>` 转向指定角度
-- `look <north|east|south|west|entity>` 朝向固定方向或最近实体
+- `look direction <east|west|north|south>` 朝向固定方向
+- `look entity [player [玩家名]|monster]` 看向实体目标；不指定类型时默认最近可见实体，`player` 不指定玩家名时默认最近可见玩家，`monster` 为最近可见敌对生物
+- `look angle <yaw|~> <pitch|~>` 转向指定角度，`~` 表示保持当前 yaw 或 pitch，重复执行实体追踪时会平滑转向并忽略被方块遮挡的目标
 - `lookat <x> <y> <z>` 看向指定方块坐标，支持 `~`、`~1`、`~-1`
 - `mine` 挖掘视线内方块
 - `mount` 骑乘或离开附近可骑乘实体
@@ -88,7 +89,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 /dummy actions bot attack
 /dummy actions bot attack repeat interval:20
 /dummy actions bot attack repeat interval:20 duration:1200
-/dummy actions bot look entity repeat interval:5
+/dummy actions bot look entity player repeat interval:1
 /dummy actions bot lookat ~ ~ ~5
 /dummy actions bot move repeat
 /dummy actions bot move sprint repeat duration:100
@@ -138,7 +139,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 - `inventory`：假人移除或插件关闭时是否掉落背包、装备和副手物品
 - `commands`：假人创建前后由控制台执行的命令
 - `death`：假人死亡后是否自动重新召唤
-- `actions`：动作系统配置，例如生命周期保留动作和骑乘搜索范围
+- `actions`：动作系统配置，例如生命周期保留动作、攻击 fallback 和骑乘搜索范围
 
 可通过命令修改的假人配置项：
 

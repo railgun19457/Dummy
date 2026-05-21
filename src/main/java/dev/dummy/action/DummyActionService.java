@@ -25,6 +25,7 @@ import org.bukkit.craftbukkit.block.CraftBlock;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -38,11 +39,17 @@ public final class DummyActionService {
     private static final double NORMAL_WALK_SPEED = 0.215D;
     private static final double NORMAL_SPRINT_SPEED = 0.280D;
     private static final int NORMAL_JUMP_INTERVAL_TICKS = 12;
+    private static final double ATTACK_RANGE = 4.0D;
+    private static final double LOOK_ENTITY_RANGE = 8.0D;
+    private static final int LOCK_OBSCURED_TIMEOUT_TICKS = 40;
+    private static final float LOOK_ENTITY_MAX_YAW_STEP = 18.0F;
+    private static final float LOOK_ENTITY_MAX_PITCH_STEP = 12.0F;
 
     private final DummyPlugin plugin;
     private final DummyManager dummyManager;
     private final Map<UUID, Map<String, BukkitTask>> tasks = new LinkedHashMap<>();
     private final Map<UUID, MineState> mineStates = new LinkedHashMap<>();
+    private final Map<UUID, LockedTarget> lockedTargets = new LinkedHashMap<>();
 
     public DummyActionService(DummyPlugin plugin, DummyManager dummyManager) {
         this.plugin = plugin;
@@ -57,7 +64,7 @@ public final class DummyActionService {
         }
 
         if (!repeat) {
-            perform(dummy, normalized, args);
+            perform(dummy, normalized, args, false);
             dummyManager.save();
             return;
         }
@@ -75,7 +82,7 @@ public final class DummyActionService {
                 return;
             }
             try {
-                perform(current, normalized, args);
+                perform(current, normalized, args, true);
             } catch (LocalizedException ex) {
                 plugin.getLogger().fine("Skipped dummy action '" + normalized + "' for " + current.name() + ": " + ex.key());
             } catch (RuntimeException ex) {
@@ -120,6 +127,10 @@ public final class DummyActionService {
         return plugin.getConfig().getBoolean("actions.preserve-on-lifecycle", true);
     }
 
+    private boolean attackAutoTargetsNearestVisible() {
+        return plugin.getConfig().getBoolean("actions.attack.auto-target-nearest-visible", false);
+    }
+
     public static String[] tail(String[] args, int from) {
         if (from >= args.length) {
             return new String[0];
@@ -129,7 +140,7 @@ public final class DummyActionService {
 
     public static int defaultRepeatInterval(String action) {
         return switch (action.toLowerCase(Locale.ROOT)) {
-            case "mine", "move" -> 1;
+            case "look", "mine", "move" -> 1;
             case "jump" -> NORMAL_JUMP_INTERVAL_TICKS;
             default -> 20;
         };
@@ -139,7 +150,7 @@ public final class DummyActionService {
         return action.equalsIgnoreCase("jump") ? NORMAL_JUMP_INTERVAL_TICKS : 1;
     }
 
-    private void perform(DummyInstance dummy, String action, String[] args) {
+    private void perform(DummyInstance dummy, String action, String[] args, boolean repeated) {
         Player player = dummy.player();
         switch (action) {
             case "attack" -> attack(player);
@@ -148,7 +159,7 @@ public final class DummyActionService {
             case "drop" -> player.dropItem(true);
             case "hold" -> hold(player, args);
             case "jump" -> jump(player);
-            case "look" -> look(player, args);
+            case "look" -> look(player, args, repeated);
             case "lookat" -> lookAt(player, args);
             case "mine" -> mine(player);
             case "mount" -> mount(player);
@@ -162,13 +173,15 @@ public final class DummyActionService {
     }
 
     private void attack(Player player) {
-        Entity target = player.getTargetEntity(4, true);
+        Entity target = resolveAttackTarget(player);
         if (target == null) {
-            target = nearestEntity(player, 4.0D);
-        }
-        if (target == null || target.equals(player)) {
             throw new LocalizedException("error.no-target-entity");
         }
+        if (player.getAttackCooldown() < 1.0F) {
+            player.swingMainHand();
+            throw new LocalizedException("error.attack-cooldown");
+        }
+        lookAtEntity(player, target, false);
         player.attack(target);
         player.swingMainHand();
     }
@@ -195,28 +208,82 @@ public final class DummyActionService {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> player.setJumping(false), 2L);
     }
 
-    private void look(Player player, String[] args) {
-        if (args.length == 1) {
-            switch (args[0].toLowerCase(Locale.ROOT)) {
-                case "north" -> player.setRotation(180.0F, 0.0F);
-                case "east" -> player.setRotation(-90.0F, 0.0F);
-                case "south" -> player.setRotation(0.0F, 0.0F);
-                case "west" -> player.setRotation(90.0F, 0.0F);
-                case "entity" -> lookAtNearestEntity(player);
-                default -> throw new LocalizedException("error.look-requires-rotation");
-            }
-            return;
-        }
-        if (args.length < 2) {
+    private void look(Player player, String[] args, boolean repeated) {
+        if (args.length == 0) {
             throw new LocalizedException("error.look-requires-rotation");
         }
-        player.setRotation(Float.parseFloat(args[0]), Float.parseFloat(args[1]));
+        switch (args[0].toLowerCase(Locale.ROOT)) {
+            case "direction" -> lookDirection(player, args);
+            case "entity" -> lookAtEntityTarget(player, args, repeated);
+            case "angle" -> lookAngle(player, args);
+            default -> throw new LocalizedException("error.look-requires-rotation");
+        }
+    }
+
+    private void lookDirection(Player player, String[] args) {
+        if (args.length != 2) {
+            throw new LocalizedException("error.look-requires-rotation");
+        }
+        lockedTargets.remove(player.getUniqueId());
+        switch (args[1].toLowerCase(Locale.ROOT)) {
+            case "north" -> player.setRotation(180.0F, 0.0F);
+            case "east" -> player.setRotation(-90.0F, 0.0F);
+            case "south" -> player.setRotation(0.0F, 0.0F);
+            case "west" -> player.setRotation(90.0F, 0.0F);
+            default -> throw new LocalizedException("error.look-requires-rotation");
+        }
+    }
+
+    private void lookAngle(Player player, String[] args) {
+        if (args.length != 3) {
+            throw new LocalizedException("error.look-requires-rotation");
+        }
+        lockedTargets.remove(player.getUniqueId());
+        Location location = player.getLocation();
+        float yaw = parseRotationCoordinate(args[1], location.getYaw());
+        float pitch = parseRotationCoordinate(args[2], location.getPitch());
+        player.setRotation(normalizeYaw(yaw), clampPitch(pitch));
+    }
+
+    private void lookAtEntityTarget(Player player, String[] args, boolean smooth) {
+        if (args.length > 3) {
+            throw new LocalizedException("error.look-requires-rotation");
+        }
+
+        LookTargetType targetType = LookTargetType.ANY;
+        String targetName = null;
+        if (args.length == 1) {
+            targetType = LookTargetType.ANY;
+        } else {
+            switch (args[1].toLowerCase(Locale.ROOT)) {
+                case "player" -> {
+                    targetType = LookTargetType.PLAYER;
+                    if (args.length == 3) {
+                        targetName = args[2];
+                    }
+                }
+                case "monster" -> {
+                    if (args.length != 2) {
+                        throw new LocalizedException("error.look-requires-rotation");
+                    }
+                    targetType = LookTargetType.MONSTER;
+                }
+                default -> throw new LocalizedException("error.look-requires-rotation");
+            }
+        }
+
+        Entity target = resolveLookTarget(player, targetType, targetName);
+        if (target == null) {
+            throw new LocalizedException("error.no-target-entity");
+        }
+        lookAtEntity(player, target, smooth);
     }
 
     private void lookAt(Player player, String[] args) {
         if (args.length != 3) {
             throw new LocalizedException("error.lookat-requires-coordinates");
         }
+        lockedTargets.remove(player.getUniqueId());
         Location location = player.getLocation();
         int x = parseBlockCoordinate(args[0], location.getBlockX());
         int y = parseBlockCoordinate(args[1], location.getBlockY());
@@ -360,12 +427,207 @@ public final class DummyActionService {
                 .orElse(null);
     }
 
-    private void lookAtNearestEntity(Player player) {
-        Entity target = nearestEntity(player, 8.0D);
-        if (target == null) {
-            throw new LocalizedException("error.no-target-entity");
+    private Entity resolveLookTarget(Player player, LookTargetType targetType, String targetName) {
+        TargetResolution locked = lockedTarget(player, targetType, targetName, LOOK_ENTITY_RANGE);
+        if (locked.target() != null || locked.waitingForLockedTarget()) {
+            return locked.target();
         }
-        player.lookAt(target, io.papermc.paper.entity.LookAnchor.EYES, io.papermc.paper.entity.LookAnchor.EYES);
+
+        Entity target = targetName == null
+                ? nearestVisibleTarget(player, targetType, LOOK_ENTITY_RANGE)
+                : namedPlayerTarget(player, targetName, LOOK_ENTITY_RANGE);
+        if (target != null) {
+            lockTarget(player, target, targetType == LookTargetType.ANY ? targetTypeFor(target) : targetType, targetName);
+        }
+        return target;
+    }
+
+    private Entity resolveAttackTarget(Player player) {
+        TargetResolution locked = lockedTarget(player, LookTargetType.ANY, null, ATTACK_RANGE);
+        if (locked.target() != null || locked.waitingForLockedTarget()) {
+            return locked.target();
+        }
+
+        Entity target = player.getTargetEntity((int) Math.ceil(ATTACK_RANGE), false);
+        if (!isTargetCandidate(player, target, LookTargetType.ANY, ATTACK_RANGE, true)) {
+            target = attackAutoTargetsNearestVisible()
+                    ? nearestVisibleTarget(player, LookTargetType.ANY, ATTACK_RANGE)
+                    : null;
+        }
+        if (target != null) {
+            lockTarget(player, target, targetTypeFor(target), null);
+        }
+        return target;
+    }
+
+    private TargetResolution lockedTarget(Player player, LookTargetType targetType, String targetName, double range) {
+        UUID playerUuid = player.getUniqueId();
+        LockedTarget locked = lockedTargets.get(playerUuid);
+        if (locked == null || !locked.matches(targetType, targetName)) {
+            return TargetResolution.none();
+        }
+
+        Entity target = plugin.getServer().getEntity(locked.targetUuid());
+        if (!isTargetCandidate(player, target, locked.targetType(), range, false)) {
+            lockedTargets.remove(playerUuid);
+            return TargetResolution.none();
+        }
+        if (!player.hasLineOfSight(target)) {
+            int tick = Math.max(0, player.getTicksLived());
+            int obscuredSinceTick = locked.obscuredSinceTick() < 0 ? tick : locked.obscuredSinceTick();
+            if (tick - obscuredSinceTick >= LOCK_OBSCURED_TIMEOUT_TICKS) {
+                lockedTargets.remove(playerUuid);
+                return TargetResolution.none();
+            }
+            lockedTargets.put(playerUuid, locked.withObscuredSinceTick(obscuredSinceTick));
+            return TargetResolution.waiting();
+        }
+
+        if (locked.obscuredSinceTick() >= 0) {
+            lockedTargets.put(playerUuid, locked.withObscuredSinceTick(-1));
+        }
+        return new TargetResolution(target, false);
+    }
+
+    private Entity nearestVisibleTarget(Player player, LookTargetType targetType, double range) {
+        return player.getNearbyEntities(range, range, range)
+                .stream()
+                .filter(entity -> isTargetCandidate(player, entity, targetType, range, true))
+                .min((left, right) -> Double.compare(
+                        left.getLocation().distanceSquared(player.getLocation()),
+                        right.getLocation().distanceSquared(player.getLocation())
+                ))
+                .orElse(null);
+    }
+
+    private Player namedPlayerTarget(Player player, String name, double range) {
+        Player target = plugin.getServer().getPlayerExact(name);
+        if (!isTargetCandidate(player, target, LookTargetType.PLAYER, range, true)) {
+            return null;
+        }
+        return target;
+    }
+
+    private boolean isTargetCandidate(Player player, Entity entity, LookTargetType targetType, double range, boolean requireLineOfSight) {
+        if (!(entity instanceof LivingEntity) || entity.equals(player) || !entity.isValid() || entity.isDead()) {
+            return false;
+        }
+        if (!entity.getWorld().equals(player.getWorld())) {
+            return false;
+        }
+        if (entity.getLocation().distanceSquared(player.getLocation()) > range * range) {
+            return false;
+        }
+        if (entity instanceof Player targetPlayer && !player.canSee(targetPlayer)) {
+            return false;
+        }
+        if (!matchesTargetType(entity, targetType)) {
+            return false;
+        }
+        return !requireLineOfSight || player.hasLineOfSight(entity);
+    }
+
+    private boolean matchesTargetType(Entity entity, LookTargetType targetType) {
+        return switch (targetType) {
+            case ANY -> true;
+            case PLAYER -> entity instanceof Player;
+            case MONSTER -> entity instanceof Monster;
+        };
+    }
+
+    private void lockTarget(Player player, Entity target, LookTargetType targetType, String targetName) {
+        lockedTargets.put(player.getUniqueId(), new LockedTarget(target.getUniqueId(), targetType, targetName, -1));
+    }
+
+    private LookTargetType targetTypeFor(Entity entity) {
+        if (entity instanceof Player) {
+            return LookTargetType.PLAYER;
+        }
+        if (entity instanceof Monster) {
+            return LookTargetType.MONSTER;
+        }
+        return LookTargetType.ANY;
+    }
+
+    private void lookAtEntity(Player player, Entity target, boolean smooth) {
+        if (!smooth) {
+            player.lookAt(target, LookAnchor.EYES, LookAnchor.EYES);
+            return;
+        }
+        rotateToward(player, entityLookLocation(target), LOOK_ENTITY_MAX_YAW_STEP, LOOK_ENTITY_MAX_PITCH_STEP);
+    }
+
+    private Location entityLookLocation(Entity entity) {
+        if (entity instanceof LivingEntity livingEntity) {
+            return livingEntity.getEyeLocation();
+        }
+        return entity.getLocation();
+    }
+
+    private void rotateToward(Player player, Location target, float maxYawStep, float maxPitchStep) {
+        Location source = player.getEyeLocation();
+        Vector difference = target.toVector().subtract(source.toVector());
+        if (difference.lengthSquared() == 0.0D) {
+            return;
+        }
+
+        double horizontal = Math.sqrt(difference.getX() * difference.getX() + difference.getZ() * difference.getZ());
+        float targetYaw = normalizeYaw((float) Math.toDegrees(Math.atan2(-difference.getX(), difference.getZ())));
+        float targetPitch = clampPitch((float) Math.toDegrees(-Math.atan2(difference.getY(), horizontal)));
+        Location current = player.getLocation();
+        player.setRotation(
+                approachAngle(current.getYaw(), targetYaw, maxYawStep),
+                approach(current.getPitch(), targetPitch, maxPitchStep)
+        );
+    }
+
+    private float approach(float current, float target, float maxStep) {
+        float delta = target - current;
+        if (Math.abs(delta) <= maxStep) {
+            return target;
+        }
+        return current + (float) Math.copySign(maxStep, delta);
+    }
+
+    private float approachAngle(float current, float target, float maxStep) {
+        float delta = wrapDegrees(target - current);
+        if (Math.abs(delta) <= maxStep) {
+            return target;
+        }
+        return normalizeYaw(current + (float) Math.copySign(maxStep, delta));
+    }
+
+    private float parseRotationCoordinate(String raw, float base) {
+        try {
+            if (raw.equals("~")) {
+                return base;
+            }
+            if (raw.startsWith("~")) {
+                return base + Float.parseFloat(raw.substring(1));
+            }
+            return Float.parseFloat(raw);
+        } catch (NumberFormatException ex) {
+            throw new LocalizedException("error.invalid-number", raw);
+        }
+    }
+
+    private float normalizeYaw(float yaw) {
+        return wrapDegrees(yaw);
+    }
+
+    private float wrapDegrees(float angle) {
+        float wrapped = angle % 360.0F;
+        if (wrapped >= 180.0F) {
+            wrapped -= 360.0F;
+        }
+        if (wrapped < -180.0F) {
+            wrapped += 360.0F;
+        }
+        return wrapped;
+    }
+
+    private float clampPitch(float pitch) {
+        return Math.max(-90.0F, Math.min(90.0F, pitch));
     }
 
     private boolean parseToggle(String[] args, boolean currentValue) {
@@ -389,7 +651,7 @@ public final class DummyActionService {
     }
 
     private void resetAll(DummyInstance dummy) {
-        for (String action : java.util.List.of("jump", "move", "mine", "sneak", "mount", "use")) {
+        for (String action : java.util.List.of("attack", "jump", "look", "move", "mine", "sneak", "mount", "use")) {
             resetAction(dummy, action);
         }
     }
@@ -397,6 +659,7 @@ public final class DummyActionService {
     private boolean resetAction(DummyInstance dummy, String action) {
         Player player = dummy.player();
         switch (action) {
+            case "attack", "look" -> lockedTargets.remove(player.getUniqueId());
             case "jump" -> player.setJumping(false);
             case "move" -> player.setVelocity(player.getVelocity().setX(0.0D).setZ(0.0D));
             case "mine" -> mineStates.remove(player.getUniqueId());
@@ -422,8 +685,13 @@ public final class DummyActionService {
         }
         if (dummy != null) {
             resetAction(dummy, action);
-        } else if (action.equals("mine")) {
-            mineStates.remove(uuid);
+        } else {
+            if (action.equals("mine")) {
+                mineStates.remove(uuid);
+            }
+            if (action.equals("attack") || action.equals("look")) {
+                lockedTargets.remove(uuid);
+            }
         }
     }
 
@@ -497,5 +765,36 @@ public final class DummyActionService {
                     && block.getY() == y
                     && block.getZ() == z;
         }
+    }
+
+    private record LockedTarget(UUID targetUuid, LookTargetType targetType, String targetName, int obscuredSinceTick) {
+        private boolean matches(LookTargetType requestedType, String requestedName) {
+            if (requestedName != null) {
+                return targetType == LookTargetType.PLAYER
+                        && targetName != null
+                        && targetName.equalsIgnoreCase(requestedName);
+            }
+            return requestedType == LookTargetType.ANY || targetType == requestedType;
+        }
+
+        private LockedTarget withObscuredSinceTick(int tick) {
+            return new LockedTarget(targetUuid, targetType, targetName, tick);
+        }
+    }
+
+    private record TargetResolution(Entity target, boolean waitingForLockedTarget) {
+        private static TargetResolution none() {
+            return new TargetResolution(null, false);
+        }
+
+        private static TargetResolution waiting() {
+            return new TargetResolution(null, true);
+        }
+    }
+
+    private enum LookTargetType {
+        ANY,
+        PLAYER,
+        MONSTER
     }
 }

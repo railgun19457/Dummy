@@ -64,14 +64,15 @@ Dummy is a fake player plugin for modern Paper servers. It creates real server-s
 
 Available actions:
 
-- `attack` Attacks the looked-at or nearest entity
+- `attack` Attacks the current locked target; if none is locked, it attacks the looked-at visible entity and respects range, cooldown, and line-of-sight checks; enable `actions.attack.auto-target-nearest-visible` for the nearest-visible-entity fallback
 - `chat <message>` Sends a chat message
 - `command <command>` Runs a command as the dummy
 - `drop` Drops the held item
 - `hold <0-8>` Switches the selected hotbar slot
 - `jump` Jumps
-- `look <yaw> <pitch>` Looks in a specific rotation
-- `look <north|east|south|west|entity>` Looks in a fixed direction or at the nearest entity
+- `look direction <east|west|north|south>` Looks in a fixed direction
+- `look entity [player [name]|monster]` Looks at an entity target; omitted type means the nearest visible entity, `player` without a name means the nearest visible player, and `monster` means the nearest visible hostile mob
+- `look angle <yaw|~> <pitch|~>` Looks in a specific rotation; `~` keeps the current yaw or pitch, and repeated entity tracking turns smoothly while ignoring targets blocked by blocks
 - `lookat <x> <y> <z>` Looks at a block position, supports `~`, `~1`, `~-1`
 - `mine` Mines the looked-at block
 - `mount` Mounts or dismounts a nearby mountable entity
@@ -88,7 +89,7 @@ Available actions:
 /dummy actions bot attack
 /dummy actions bot attack repeat interval:20
 /dummy actions bot attack repeat interval:20 duration:1200
-/dummy actions bot look entity repeat interval:5
+/dummy actions bot look entity player repeat interval:1
 /dummy actions bot lookat ~ ~ ~5
 /dummy actions bot move repeat
 /dummy actions bot move sprint repeat duration:100
@@ -138,7 +139,7 @@ Main `config.yml` sections:
 - `inventory`: Whether inventory, armor, and offhand items drop when a dummy is removed or the plugin shuts down
 - `commands`: Console commands executed before and after dummy creation
 - `death`: Whether a dead dummy is automatically re-summoned
-- `actions`: Action system settings, such as preserving lifecycle actions and mount search range
+- `actions`: Action system settings, such as preserving lifecycle actions, attack fallback, and mount search range
 
 Per-dummy settings configurable by command:
 

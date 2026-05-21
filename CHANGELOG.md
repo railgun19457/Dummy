@@ -1,5 +1,12 @@
 # 更新日志
 
+## 0.2.8 - 2026-05-21
+
+- 重组 `look` 动作为 `direction` / `entity` / `angle` 三类参数，支持固定方向、角度 `~` 和实体分类追踪。
+- `look entity` 支持玩家、指定玩家、敌对生物和默认实体目标，并在重复执行时平滑转向。
+- 新增视线遮挡检测和目标锁定，`attack` 会优先攻击锁定目标，并校验距离、冷却和视线。
+- 新增 `actions.attack.auto-target-nearest-visible` 配置项，默认关闭 `attack` 自动选择最近可见实体的 fallback。
+
 ## 0.2.7 - 2026-05-20
 
 - 移除 `sprint` 动作，`move` 现在通过 `slow` / `walk` / `sprint` 或数值参数控制移动速度，并限制在正常疾跑速度以内。

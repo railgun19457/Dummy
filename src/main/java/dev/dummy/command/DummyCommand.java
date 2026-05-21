@@ -31,7 +31,10 @@ public final class DummyCommand implements BasicCommand {
     );
     private static final List<String> MODE_ACTIONS = List.of("attack", "drop", "jump", "look", "mine", "move", "place", "use");
     private static final List<String> TOGGLE_ACTIONS = List.of("sneak");
-    private static final List<String> LOOK_ARGS = List.of("north", "east", "south", "west", "entity");
+    private static final List<String> LOOK_ARGS = List.of("direction", "entity", "angle");
+    private static final List<String> LOOK_DIRECTIONS = List.of("east", "west", "north", "south");
+    private static final List<String> LOOK_ENTITY_TYPES = List.of("player", "monster");
+    private static final List<String> LOOK_ANGLE_ARGS = List.of("~", "0");
     private static final List<String> TOGGLE_ARGS = List.of("toggle", "on", "off");
     private static final List<String> REPEAT_OPTIONS = List.of("interval:", "duration:");
 
@@ -367,6 +370,9 @@ public final class DummyCommand implements BasicCommand {
         if (action.equals("stop")) {
             return args.length == 4 ? filter(ACTIONS, args[3]) : List.of();
         }
+        if (action.equals("look")) {
+            return lookActionSuggestions(args);
+        }
         if (args.length == 4) {
             List<String> values = new ArrayList<>();
             if (supportsMode(action)) {
@@ -385,6 +391,84 @@ public final class DummyCommand implements BasicCommand {
         }
         if (supportsMode(action)) {
             return filter(List.of("repeat"), args[args.length - 1]);
+        }
+        return List.of();
+    }
+
+    private List<String> lookActionSuggestions(String[] args) {
+        int repeatIndex = modeIndex(args, 3, "repeat");
+        if (repeatIndex >= 3) {
+            return repeatOptionSuggestions(args, repeatIndex);
+        }
+        int start = args[3].equalsIgnoreCase("once") ? 4 : 3;
+        boolean once = start == 4;
+        if (args.length == start) {
+            return LOOK_ARGS;
+        }
+        return lookArgumentSuggestions(args, start, once);
+    }
+
+    private List<String> lookArgumentSuggestions(String[] args, int start, boolean once) {
+        if (args.length == start + 1) {
+            return filter(LOOK_ARGS, args[start]);
+        }
+
+        String branch = args[start].toLowerCase(Locale.ROOT);
+        return switch (branch) {
+            case "direction" -> lookDirectionSuggestions(args, start, once);
+            case "entity" -> lookEntitySuggestions(args, start, once);
+            case "angle" -> lookAngleSuggestions(args, start, once);
+            default -> List.of();
+        };
+    }
+
+    private List<String> lookDirectionSuggestions(String[] args, int start, boolean once) {
+        if (args.length == start + 2) {
+            return filter(LOOK_DIRECTIONS, args[start + 1]);
+        }
+        if (!once && args.length == start + 3) {
+            return filter(List.of("repeat"), args[start + 2]);
+        }
+        return List.of();
+    }
+
+    private List<String> lookEntitySuggestions(String[] args, int start, boolean once) {
+        if (args.length == start + 2) {
+            List<String> values = new ArrayList<>(LOOK_ENTITY_TYPES);
+            if (!once) {
+                values.add("repeat");
+            }
+            return filter(values, args[start + 1]);
+        }
+
+        String entityType = args[start + 1].toLowerCase(Locale.ROOT);
+        if (entityType.equals("player")) {
+            if (args.length == start + 3) {
+                List<String> values = new ArrayList<>(plugin.getServer().getOnlinePlayers().stream().map(Player::getName).toList());
+                if (!once) {
+                    values.add("repeat");
+                }
+                return filter(values, args[start + 2]);
+            }
+            if (!once && args.length == start + 4) {
+                return filter(List.of("repeat"), args[start + 3]);
+            }
+        }
+        if (!once && entityType.equals("monster") && args.length == start + 3) {
+            return filter(List.of("repeat"), args[start + 2]);
+        }
+        return List.of();
+    }
+
+    private List<String> lookAngleSuggestions(String[] args, int start, boolean once) {
+        if (args.length == start + 2) {
+            return filter(LOOK_ANGLE_ARGS, args[start + 1]);
+        }
+        if (args.length == start + 3) {
+            return filter(LOOK_ANGLE_ARGS, args[start + 2]);
+        }
+        if (!once && args.length == start + 4) {
+            return filter(List.of("repeat"), args[start + 3]);
         }
         return List.of();
     }
