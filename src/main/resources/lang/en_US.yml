@@ -39,9 +39,10 @@ error:
   craft-world-required: "Spawn world is not a CraftWorld."
 
 usage:
-  root: "Usage: /dummy <spawn|remove|list|reload|config|skin|exp|inv|tpto|tphere|tps|actions>"
+  root: "Usage: /dummy <spawn|remove|delete|list|reload|config|skin|exp|inv|tpto|tphere|tps|actions>"
   spawn: "Usage: /dummy spawn <name>"
   remove: "Usage: /dummy remove <name|all>"
+  delete: "Usage: /dummy delete <name>"
   config: "Usage: /dummy config <name> [key] [value]"
   skin: "Usage: /dummy skin <name> <set|clear> ..."
   skin-set: "Usage: /dummy skin <name> set <premiumPlayerName>"
@@ -50,13 +51,15 @@ usage:
   tpto: "Usage: /dummy tpto <name>"
   tphere: "Usage: /dummy tphere <name>"
   tps: "Usage: /dummy tps <name>"
-  actions: "Usage: /dummy actions <name> <action> [args...] [once|repeat interval:<ticks> duration:<ticks>]"
+  actions: "Usage: /dummy actions <name> [action] [args...] [repeat interval:<ticks> duration:<ticks>]"
 
 command:
   spawn-success: "Spawned dummy {0}."
   remove-reason: "removed by {0}"
+  delete-reason: "deleted by {0}"
   remove-all-success: "Removed {0} dummy player(s)."
   remove-success: "Removed dummy {0}."
+  delete-success: "Deleted dummy {0} and its saved data."
   list-empty: "No dummy players are currently spawned."
   list: "Dummy players: {0}"
   reload-success: "Dummy configuration reloaded. Language: {0}."
@@ -69,6 +72,8 @@ command:
   tpto-success: "Teleported to {0}."
   tphere-success: "Teleported {0} to you."
   tps-success: "Swapped positions with {0}."
+  actions-list-empty: "Dummy {0} has no running actions."
+  actions-list: "Running actions for {0}: {1}"
   actions-stopped: "Stopped {0} action(s)."
   actions-started: "Started action {0} for {1}."
 

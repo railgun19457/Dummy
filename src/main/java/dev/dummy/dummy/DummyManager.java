@@ -111,6 +111,15 @@ public final class DummyManager {
         return true;
     }
 
+    public boolean delete(String name, String reason) {
+        DummyInstance dummy = get(name);
+        if (dummy == null) {
+            return false;
+        }
+        removeDummy(dummy, reason, true, false);
+        return true;
+    }
+
     public int removeAll(String reason) {
         return removeAll(Bukkit.getConsoleSender(), reason);
     }
@@ -329,9 +338,17 @@ public final class DummyManager {
     }
 
     private void removeDummy(DummyInstance dummy, String reason, boolean save) {
+        removeDummy(dummy, reason, save, true);
+    }
+
+    private void removeDummy(DummyInstance dummy, String reason, boolean save, boolean keepData) {
         releaseChunkTicket(dummy);
         dropInventoryIfConfigured(dummy);
-        storage.saveRemoved(dummy);
+        if (keepData) {
+            storage.saveRemoved(dummy);
+        } else {
+            storage.deleteRemoved(dummy.name());
+        }
         dummiesByName.remove(normalize(dummy.name()));
         dummiesByUuid.remove(dummy.uuid());
         sendProxyTabRemove(dummy);

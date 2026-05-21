@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.dummy"
-version = "0.2.8"
+version = "0.2.9"
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(21))

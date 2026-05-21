@@ -39,9 +39,10 @@ error:
   craft-world-required: "召唤世界不是 CraftWorld。"
 
 usage:
-  root: "用法：/dummy <spawn|remove|list|reload|config|skin|exp|inv|tpto|tphere|tps|actions>"
+  root: "用法：/dummy <spawn|remove|delete|list|reload|config|skin|exp|inv|tpto|tphere|tps|actions>"
   spawn: "用法：/dummy spawn <name>"
   remove: "用法：/dummy remove <name|all>"
+  delete: "用法：/dummy delete <name>"
   config: "用法：/dummy config <name> [key] [value]"
   skin: "用法：/dummy skin <name> <set|clear> ..."
   skin-set: "用法：/dummy skin <name> set <正版玩家ID>"
@@ -50,13 +51,15 @@ usage:
   tpto: "用法：/dummy tpto <name>"
   tphere: "用法：/dummy tphere <name>"
   tps: "用法：/dummy tps <name>"
-  actions: "用法：/dummy actions <name> <action> [args...] [once|repeat interval:<ticks> duration:<ticks>]"
+  actions: "用法：/dummy actions <name> [action] [args...] [repeat interval:<ticks> duration:<ticks>]"
 
 command:
   spawn-success: "已召唤假人 {0}。"
   remove-reason: "被 {0} 移除"
+  delete-reason: "被 {0} 删除"
   remove-all-success: "已移除 {0} 个假人。"
   remove-success: "已移除假人 {0}。"
+  delete-success: "已删除假人 {0} 及其保存数据。"
   list-empty: "当前没有已召唤的假人。"
   list: "假人列表：{0}"
   reload-success: "Dummy 配置已重载。当前语言：{0}。"
@@ -69,6 +72,8 @@ command:
   tpto-success: "已传送到 {0}。"
   tphere-success: "已将 {0} 传送到你的位置。"
   tps-success: "已与 {0} 交换位置。"
+  actions-list-empty: "假人 {0} 当前没有正在执行的动作。"
+  actions-list: "假人 {0} 当前动作：{1}"
   actions-stopped: "已停止 {0} 个动作。"
   actions-started: "已为 {1} 启动动作 {0}。"
 

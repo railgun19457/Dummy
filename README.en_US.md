@@ -48,6 +48,7 @@ Dummy is a fake player plugin for modern Paper servers. It creates real server-s
 | `/dummy spawn <name>` | Spawns a dummy at your current location | `dummy.command.spawn` |
 | `/dummy remove <name>` | Removes one dummy | `dummy.command.remove` |
 | `/dummy remove all` | Removes all manageable dummies | `dummy.command.remove` |
+| `/dummy delete <name>` | Removes a dummy and deletes its saved data | `dummy.command.delete` |
 | `/dummy list` | Lists active dummies | `dummy.command.list` |
 | `/dummy reload` | Reloads config and language files | `dummy.command.reload` |
 | `/dummy config <name> [key] [value]` | Opens the config GUI or updates dummy settings | `dummy.command.config` |
@@ -58,6 +59,7 @@ Dummy is a fake player plugin for modern Paper servers. It creates real server-s
 | `/dummy tpto <name>` | Teleports you to a dummy | `dummy.command.tpto` |
 | `/dummy tphere <name>` | Teleports a dummy to your current location | `dummy.command.tphere` |
 | `/dummy tps <name>` | Swaps positions with a dummy | `dummy.command.tps` |
+| `/dummy actions <name>` | Lists currently running repeated actions | `dummy.command.actions` |
 | `/dummy actions <name> <action> ...` | Controls dummy actions | `dummy.command.actions` |
 
 ## Actions
@@ -94,6 +96,7 @@ Available actions:
 /dummy actions bot move repeat
 /dummy actions bot move sprint repeat duration:100
 /dummy actions bot jump repeat
+/dummy actions bot
 /dummy actions bot stop
 /dummy actions bot stop attack
 ```
@@ -101,7 +104,6 @@ Available actions:
 Action mode notes:
 
 - If no mode is specified, the action runs once.
-- `once` runs the action once.
 - `repeat interval:<ticks> duration:<ticks>` repeats the action; both `interval:` and `duration:` are optional.
 - If `interval:` is omitted, the action default is used, for example `move repeat` is continuous walking and `jump repeat` is normal continuous jumping.
 - `jump` repeat intervals are never shorter than one complete normal jump cycle.
@@ -115,6 +117,7 @@ Action mode notes:
 | `dummy.command.manage-all` | Allows managing dummies spawned by other players | OP |
 | `dummy.command.spawn` | Allows spawning dummies | All players |
 | `dummy.command.remove` | Allows removing one dummy | All players |
+| `dummy.command.delete` | Allows removing dummies and deleting saved data | All players |
 | `dummy.command.list` | Allows listing dummies | All players |
 | `dummy.command.reload` | Allows reloading config | OP |
 | `dummy.command.config` | Allows changing dummy settings | All players |
@@ -126,7 +129,7 @@ Action mode notes:
 | `dummy.command.tps` | Allows swapping positions | All players |
 | `dummy.command.actions` | Allows controlling dummy actions | All players |
 
-Regular players can only list, complete, configure, inventory, teleport, transfer experience, run actions, and remove dummies they spawned. Players with `dummy.command.manage-all` can operate on all dummies; `/dummy remove all` removes every dummy the sender can manage.
+Regular players can only list, complete, configure, inventory, teleport, transfer experience, run actions, remove, and delete dummies they spawned. Players with `dummy.command.manage-all` can operate on all dummies; `/dummy remove all` removes every dummy the sender can manage.
 
 ## Configuration Overview
 

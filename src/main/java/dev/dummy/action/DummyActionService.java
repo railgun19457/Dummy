@@ -7,6 +7,7 @@ import dev.dummy.i18n.LocalizedException;
 import io.papermc.paper.entity.LookAnchor;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -121,6 +122,14 @@ public final class DummyActionService {
             tasks.remove(dummy.uuid());
         }
         return resetAction(dummy, normalized) || task != null ? 1 : 0;
+    }
+
+    public List<String> activeActions(DummyInstance dummy) {
+        Map<String, BukkitTask> dummyTasks = tasks.get(dummy.uuid());
+        if (dummyTasks == null || dummyTasks.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(dummyTasks.keySet());
     }
 
     public boolean preserveOnLifecycle() {

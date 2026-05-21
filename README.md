@@ -48,6 +48,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `/dummy spawn <name>` | 在当前位置召唤假人 | `dummy.command.spawn` |
 | `/dummy remove <name>` | 移除指定假人 | `dummy.command.remove` |
 | `/dummy remove all` | 移除自己可管理的全部假人 | `dummy.command.remove` |
+| `/dummy delete <name>` | 移除假人并删除保存数据 | `dummy.command.delete` |
 | `/dummy list` | 查看当前假人列表 | `dummy.command.list` |
 | `/dummy reload` | 重载配置和语言文件 | `dummy.command.reload` |
 | `/dummy config <name> [key] [value]` | 打开配置 GUI 或修改假人配置 | `dummy.command.config` |
@@ -58,6 +59,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `/dummy tpto <name>` | 将玩家传送到假人处 | `dummy.command.tpto` |
 | `/dummy tphere <name>` | 将假人传送到玩家当前位置 | `dummy.command.tphere` |
 | `/dummy tps <name>` | 交换玩家和假人的位置 | `dummy.command.tps` |
+| `/dummy actions <name>` | 查看假人当前正在执行的重复动作 | `dummy.command.actions` |
 | `/dummy actions <name> <action> ...` | 控制假人执行动作 | `dummy.command.actions` |
 
 ## 动作
@@ -94,6 +96,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 /dummy actions bot move repeat
 /dummy actions bot move sprint repeat duration:100
 /dummy actions bot jump repeat
+/dummy actions bot
 /dummy actions bot stop
 /dummy actions bot stop attack
 ```
@@ -101,7 +104,6 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 动作模式说明：
 
 - 未指定模式时执行一次。
-- `once` 表示单次执行。
 - `repeat interval:<ticks> duration:<ticks>` 表示重复执行，`interval:` 和 `duration:` 均可省略。
 - 省略 `interval:` 时使用动作默认周期，例如 `move repeat` 为持续行走，`jump repeat` 为正常连续跳跃。
 - `jump` 的循环周期最短为一次完整跳跃所需的正常周期。
@@ -115,6 +117,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `dummy.command.manage-all` | 允许管理其他玩家召唤的假人 | OP |
 | `dummy.command.spawn` | 允许召唤假人 | 所有玩家 |
 | `dummy.command.remove` | 允许移除单个假人 | 所有玩家 |
+| `dummy.command.delete` | 允许移除假人并删除保存数据 | 所有玩家 |
 | `dummy.command.list` | 允许查看假人列表 | 所有玩家 |
 | `dummy.command.reload` | 允许重载配置 | OP |
 | `dummy.command.config` | 允许修改假人配置 | 所有玩家 |
@@ -126,7 +129,7 @@ Dummy 是一个面向高版本 Paper 服务端的假人插件，通过服务端�
 | `dummy.command.tps` | 允许交换位置 | 所有玩家 |
 | `dummy.command.actions` | 允许控制假人动作 | 所有玩家 |
 
-普通玩家默认只能在列表、补全、配置、背包、传送、经验、动作和移除命令中操作自己召唤的假人。拥有 `dummy.command.manage-all` 的玩家可操作全部假人；`/dummy remove all` 会移除当前玩家可管理的全部假人。
+普通玩家默认只能在列表、补全、配置、背包、传送、经验、动作、移除和删除命令中操作自己召唤的假人。拥有 `dummy.command.manage-all` 的玩家可操作全部假人；`/dummy remove all` 会移除当前玩家可管理的全部假人。
 
 ## 配置概览
 

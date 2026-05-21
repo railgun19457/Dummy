@@ -23,7 +23,7 @@ import org.bukkit.entity.Player;
 
 public final class DummyCommand implements BasicCommand {
     private static final List<String> SUBCOMMANDS = List.of(
-            "spawn", "remove", "list", "reload", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "actions"
+            "spawn", "remove", "delete", "list", "reload", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "actions"
     );
     private static final List<String> CONFIG_KEYS = List.of("invulnerable", "collision", "ghost", "chunk-loader", "show-in-tab", "name-format");
     private static final List<String> ACTIONS = List.of(
@@ -67,6 +67,7 @@ public final class DummyCommand implements BasicCommand {
             switch (subcommand) {
                 case "spawn" -> spawn(sender, args);
                 case "remove" -> remove(sender, args);
+                case "delete" -> delete(sender, args);
                 case "list" -> list(sender);
                 case "reload" -> reload(sender);
                 case "config" -> config(sender, args);
@@ -167,6 +168,22 @@ public final class DummyCommand implements BasicCommand {
         boolean removed = dummyManager.remove(args[1], reason);
         if (removed) {
             message(sender, "command.remove-success", NamedTextColor.GREEN, args[1]);
+        } else {
+            message(sender, "error.dummy-not-found", NamedTextColor.RED, args[1]);
+        }
+    }
+
+    private void delete(CommandSender sender, String[] args) {
+        requirePermission(sender, "dummy.command.delete");
+        if (args.length != 2) {
+            message(sender, "usage.delete", NamedTextColor.YELLOW);
+            return;
+        }
+        requireManaged(sender, args[1]);
+        String reason = i18n.tr("command.delete-reason", sender.getName());
+        boolean deleted = dummyManager.delete(args[1], reason);
+        if (deleted) {
+            message(sender, "command.delete-success", NamedTextColor.GREEN, args[1]);
         } else {
             message(sender, "error.dummy-not-found", NamedTextColor.RED, args[1]);
         }
@@ -307,11 +324,21 @@ public final class DummyCommand implements BasicCommand {
 
     private void actions(CommandSender sender, String[] args) {
         requirePermission(sender, "dummy.command.actions");
-        if (args.length < 3) {
+        if (args.length < 2) {
             message(sender, "usage.actions", NamedTextColor.YELLOW);
             return;
         }
         DummyInstance dummy = requireManaged(sender, args[1]);
+        if (args.length == 2) {
+            List<String> activeActions = actionService.activeActions(dummy);
+            if (activeActions.isEmpty()) {
+                message(sender, "command.actions-list-empty", NamedTextColor.GRAY, dummy.name());
+            } else {
+                message(sender, "command.actions-list", NamedTextColor.GREEN, dummy.name(), String.join(", ", activeActions));
+            }
+            return;
+        }
+
         String action = args[2].toLowerCase(Locale.ROOT);
         if (action.equals("stop")) {
             int stopped = actionService.stop(dummy, args.length >= 4 ? args[3] : null);
@@ -358,11 +385,11 @@ public final class DummyCommand implements BasicCommand {
     }
 
     private boolean needsDummyName(String subcommand) {
-        return List.of("remove", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "actions").contains(subcommand.toLowerCase(Locale.ROOT));
+        return List.of("remove", "delete", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "actions").contains(subcommand.toLowerCase(Locale.ROOT));
     }
 
     private boolean needsActiveDummyName(String subcommand) {
-        return List.of("config", "skin", "exp", "inv", "tpto", "tphere", "tps", "actions").contains(subcommand.toLowerCase(Locale.ROOT));
+        return List.of("delete", "config", "skin", "exp", "inv", "tpto", "tphere", "tps", "actions").contains(subcommand.toLowerCase(Locale.ROOT));
     }
 
     private List<String> actionSuggestions(String[] args) {
@@ -376,7 +403,6 @@ public final class DummyCommand implements BasicCommand {
         if (args.length == 4) {
             List<String> values = new ArrayList<>();
             if (supportsMode(action)) {
-                values.add("once");
                 values.add("repeat");
             }
             values.addAll(actionArgumentSuggestions(action));
@@ -385,9 +411,6 @@ public final class DummyCommand implements BasicCommand {
         int repeatIndex = modeIndex(args, 3, "repeat");
         if (repeatIndex >= 3) {
             return repeatOptionSuggestions(args, repeatIndex);
-        }
-        if (args[3].equalsIgnoreCase("once")) {
-            return args.length == 5 ? filter(actionArgumentSuggestions(action), args[4]) : List.of();
         }
         if (supportsMode(action)) {
             return filter(List.of("repeat"), args[args.length - 1]);
@@ -400,44 +423,41 @@ public final class DummyCommand implements BasicCommand {
         if (repeatIndex >= 3) {
             return repeatOptionSuggestions(args, repeatIndex);
         }
-        int start = args[3].equalsIgnoreCase("once") ? 4 : 3;
-        boolean once = start == 4;
+        int start = 3;
         if (args.length == start) {
             return LOOK_ARGS;
         }
-        return lookArgumentSuggestions(args, start, once);
+        return lookArgumentSuggestions(args, start);
     }
 
-    private List<String> lookArgumentSuggestions(String[] args, int start, boolean once) {
+    private List<String> lookArgumentSuggestions(String[] args, int start) {
         if (args.length == start + 1) {
             return filter(LOOK_ARGS, args[start]);
         }
 
         String branch = args[start].toLowerCase(Locale.ROOT);
         return switch (branch) {
-            case "direction" -> lookDirectionSuggestions(args, start, once);
-            case "entity" -> lookEntitySuggestions(args, start, once);
-            case "angle" -> lookAngleSuggestions(args, start, once);
+            case "direction" -> lookDirectionSuggestions(args, start);
+            case "entity" -> lookEntitySuggestions(args, start);
+            case "angle" -> lookAngleSuggestions(args, start);
             default -> List.of();
         };
     }
 
-    private List<String> lookDirectionSuggestions(String[] args, int start, boolean once) {
+    private List<String> lookDirectionSuggestions(String[] args, int start) {
         if (args.length == start + 2) {
             return filter(LOOK_DIRECTIONS, args[start + 1]);
         }
-        if (!once && args.length == start + 3) {
+        if (args.length == start + 3) {
             return filter(List.of("repeat"), args[start + 2]);
         }
         return List.of();
     }
 
-    private List<String> lookEntitySuggestions(String[] args, int start, boolean once) {
+    private List<String> lookEntitySuggestions(String[] args, int start) {
         if (args.length == start + 2) {
             List<String> values = new ArrayList<>(LOOK_ENTITY_TYPES);
-            if (!once) {
-                values.add("repeat");
-            }
+            values.add("repeat");
             return filter(values, args[start + 1]);
         }
 
@@ -445,29 +465,27 @@ public final class DummyCommand implements BasicCommand {
         if (entityType.equals("player")) {
             if (args.length == start + 3) {
                 List<String> values = new ArrayList<>(plugin.getServer().getOnlinePlayers().stream().map(Player::getName).toList());
-                if (!once) {
-                    values.add("repeat");
-                }
+                values.add("repeat");
                 return filter(values, args[start + 2]);
             }
-            if (!once && args.length == start + 4) {
+            if (args.length == start + 4) {
                 return filter(List.of("repeat"), args[start + 3]);
             }
         }
-        if (!once && entityType.equals("monster") && args.length == start + 3) {
+        if (entityType.equals("monster") && args.length == start + 3) {
             return filter(List.of("repeat"), args[start + 2]);
         }
         return List.of();
     }
 
-    private List<String> lookAngleSuggestions(String[] args, int start, boolean once) {
+    private List<String> lookAngleSuggestions(String[] args, int start) {
         if (args.length == start + 2) {
             return filter(LOOK_ANGLE_ARGS, args[start + 1]);
         }
         if (args.length == start + 3) {
             return filter(LOOK_ANGLE_ARGS, args[start + 2]);
         }
-        if (!once && args.length == start + 4) {
+        if (args.length == start + 4) {
             return filter(List.of("repeat"), args[start + 3]);
         }
         return List.of();
@@ -494,12 +512,6 @@ public final class DummyCommand implements BasicCommand {
         if (!supportsMode(action)) {
             return new ActionRequest(false, DummyActionService.defaultRepeatInterval(action), -1, rawArgs);
         }
-        int onceIndex = modeIndex(rawArgs, 0, "once");
-        if (onceIndex >= 0) {
-            String[] actionArgs = onceIndex == 0 ? DummyActionService.tail(rawArgs, 1) : Arrays.copyOfRange(rawArgs, 0, onceIndex);
-            return new ActionRequest(false, DummyActionService.defaultRepeatInterval(action), -1, actionArgs);
-        }
-
         int repeatIndex = modeIndex(rawArgs, 0, "repeat");
         if (repeatIndex >= 0) {
             return parseRepeat(action, rawArgs, repeatIndex);

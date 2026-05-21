@@ -18,6 +18,9 @@ permissions:
   dummy.command.remove:
     description: Allows removing dummy players.
     default: true
+  dummy.command.delete:
+    description: Allows deleting dummy players and their saved data.
+    default: true
   dummy.command.list:
     description: Allows listing dummy players.
     default: true
