@@ -4,6 +4,7 @@ import dev.dummy.DummyPlugin;
 import dev.dummy.dummy.DummySettings;
 import dev.dummy.dummy.DummySkin;
 import dev.dummy.nms.DummyHandle;
+import dev.dummy.nms.paper.compat.PaperNmsCompatibility;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ public final class PaperDummyHandle implements DummyHandle {
 
     private final DummyPlugin plugin;
     private final ServerPlayer handle;
+    private final PaperNmsCompatibility nmsCompatibility;
     private final BukkitTask tickerTask;
     private final Map<UUID, Long> viewerEntityGenerations = new LinkedHashMap<>();
     private final Map<UUID, Long> viewerTabGenerations = new LinkedHashMap<>();
@@ -42,9 +44,10 @@ public final class PaperDummyHandle implements DummyHandle {
     private long entityRefreshGeneration;
     private long tabRefreshGeneration;
 
-    public PaperDummyHandle(DummyPlugin plugin, ServerPlayer handle, BukkitTask tickerTask) {
+    public PaperDummyHandle(DummyPlugin plugin, ServerPlayer handle, PaperNmsCompatibility nmsCompatibility, BukkitTask tickerTask) {
         this.plugin = plugin;
         this.handle = handle;
+        this.nmsCompatibility = nmsCompatibility;
         this.tickerTask = tickerTask;
     }
 
@@ -78,23 +81,13 @@ public final class PaperDummyHandle implements DummyHandle {
     @Override
     public void applySkin(DummySkin skin) {
         handle.gameProfile = PaperSkinSupport.createProfile(handle.getUUID(), handle.getGameProfile().name(), skin);
-        handle.updateOptionsNoEvents(PaperSkinSupport.withAllModelParts(handle.clientInformation()));
+        handle.updateOptionsNoEvents(PaperSkinSupport.withSkinModelParts(handle.clientInformation(), skin));
         refreshSkinForViewers();
     }
 
     @Override
     public void refreshForViewer(Player viewer, boolean listed) {
-        if (viewer.getUniqueId().equals(handle.getUUID())) {
-            return;
-        }
-        long entityGeneration = nextEntityGeneration(viewer);
-        long tabGeneration = nextTabGeneration(viewer);
-        sendRemoveEntityPacket(viewer);
-        sendPlayerInfo(viewer, true);
-        runIfCurrentEntity(viewer, entityGeneration, PROFILE_TO_ENTITY_DELAY_TICKS, () -> sendEntityPairingData(viewer));
-        if (!listed) {
-            runIfCurrentTab(viewer, tabGeneration, HIDE_TAB_DELAY_TICKS, () -> sendListed(viewer, false));
-        }
+        refreshProfileForViewer(viewer, listed, PROFILE_TO_ENTITY_DELAY_TICKS);
     }
 
     @Override
@@ -111,16 +104,21 @@ public final class PaperDummyHandle implements DummyHandle {
     }
 
     private void refreshProfileForViewer(Player viewer, boolean listed) {
+        refreshProfileForViewer(viewer, listed, PROFILE_REPLACE_DELAY_TICKS);
+    }
+
+    private void refreshProfileForViewer(Player viewer, boolean listed, long respawnDelayTicks) {
         if (viewer.getUniqueId().equals(handle.getUUID())) {
             return;
         }
         long entityGeneration = nextEntityGeneration(viewer);
         long tabGeneration = nextTabGeneration(viewer);
-        sendRemovePackets(viewer);
+        untrackForViewer(viewer);
+        sendPlayerInfoRemove(viewer);
         sendPlayerInfo(viewer, true);
-        runIfCurrentEntity(viewer, entityGeneration, PROFILE_REPLACE_DELAY_TICKS, () -> sendEntityPairingData(viewer));
+        runIfCurrentEntity(viewer, entityGeneration, respawnDelayTicks, () -> trackForViewer(viewer));
         if (!listed) {
-            runIfCurrentTab(viewer, tabGeneration, PROFILE_REPLACE_DELAY_TICKS + HIDE_TAB_DELAY_TICKS, () -> sendListed(viewer, false));
+            runIfCurrentTab(viewer, tabGeneration, respawnDelayTicks + HIDE_TAB_DELAY_TICKS, () -> sendListed(viewer, false));
         }
     }
 
@@ -179,14 +177,6 @@ public final class PaperDummyHandle implements DummyHandle {
         }
     }
 
-    private void sendRemovePackets(Player viewer) {
-        if (!(viewer instanceof CraftPlayer craftPlayer)) {
-            return;
-        }
-        sendRemoveEntityPacket(viewer);
-        craftPlayer.getHandle().connection.send(new ClientboundPlayerInfoRemovePacket(List.of(handle.getUUID())));
-    }
-
     private void sendRemoveEntityPacket(Player viewer) {
         if (viewer instanceof CraftPlayer craftPlayer) {
             craftPlayer.getHandle().connection.send(new ClientboundRemoveEntitiesPacket(handle.getId()));
@@ -214,6 +204,12 @@ public final class PaperDummyHandle implements DummyHandle {
         }
     }
 
+    private void sendPlayerInfoRemove(Player viewer) {
+        if (viewer instanceof CraftPlayer craftPlayer) {
+            craftPlayer.getHandle().connection.send(new ClientboundPlayerInfoRemovePacket(List.of(handle.getUUID())));
+        }
+    }
+
     private void sendPlayerInfo(Player viewer, boolean listed) {
         if (viewer instanceof CraftPlayer craftPlayer) {
             var add = ClientboundPlayerInfoUpdatePacket.createSinglePlayerInitializing(handle, listed);
@@ -224,6 +220,18 @@ public final class PaperDummyHandle implements DummyHandle {
     private void sendListed(Player viewer, boolean listed) {
         if (viewer instanceof CraftPlayer craftPlayer) {
             craftPlayer.getHandle().connection.send(ClientboundPlayerInfoUpdatePacket.updateListed(handle.getUUID(), listed));
+        }
+    }
+
+    private void untrackForViewer(Player viewer) {
+        if (!(viewer instanceof CraftPlayer craftPlayer) || !nmsCompatibility.removeTrackedViewer(handle, craftPlayer.getHandle())) {
+            sendRemoveEntityPacket(viewer);
+        }
+    }
+
+    private void trackForViewer(Player viewer) {
+        if (!(viewer instanceof CraftPlayer craftPlayer) || !nmsCompatibility.updateTrackedViewer(handle, craftPlayer.getHandle())) {
+            sendEntityPairingData(viewer);
         }
     }
 

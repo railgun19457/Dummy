@@ -155,6 +155,8 @@ public final class DummyStorage {
         section.set("skin.type", skin.type());
         section.set("skin.value", skin.value());
         section.set("skin.signature", skin.signature());
+        section.set("skin.model-parts", skin.modelParts());
+        section.set("skin.fetched-at", skin.fetchedAt());
 
         PlayerInventory inventory = dummy.player().getInventory();
         section.set("inventory.storage", new ArrayList<>(Arrays.asList(inventory.getStorageContents())));

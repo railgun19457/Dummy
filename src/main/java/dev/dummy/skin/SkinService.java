@@ -1,5 +1,6 @@
 package dev.dummy.skin;
 
+import com.destroystokyo.paper.ClientOption;
 import com.destroystokyo.paper.profile.ProfileProperty;
 import dev.dummy.DummyPlugin;
 import dev.dummy.dummy.DummySkin;
@@ -16,6 +17,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
 public final class SkinService {
+    private static final long DEFAULT_CACHE_EXPIRES_HOURS = 24L;
+
     private final DummyPlugin plugin;
     private final File file;
     private final Map<String, DummySkin> cache = new ConcurrentHashMap<>();
@@ -29,8 +32,18 @@ public final class SkinService {
     public CompletableFuture<DummySkin> fetchPlayerSkin(String playerName) {
         String key = normalize(playerName);
         DummySkin cached = cache.get(key);
-        if (cached != null && cached.hasTexture()) {
+        if (cached != null && cached.hasTexture() && !isExpired(cached)) {
             return CompletableFuture.completedFuture(cached);
+        }
+
+        Player online = Bukkit.getPlayerExact(playerName);
+        if (online != null && online.isOnline()) {
+            DummySkin skin = skinFromPlayer(online);
+            if (skin.hasTexture()) {
+                cache.put(key, skin);
+                save();
+                return CompletableFuture.completedFuture(skin);
+            }
         }
 
         return Bukkit.createProfile(playerName).update().thenApply(profile -> {
@@ -47,12 +60,13 @@ public final class SkinService {
     }
 
     public DummySkin skinFromPlayer(Player player) {
+        int modelParts = player.getClientOption(ClientOption.SKIN_PARTS).getRaw();
         return player.getPlayerProfile()
                 .getProperties()
                 .stream()
                 .filter(candidate -> candidate.getName().equals("textures"))
                 .findFirst()
-                .map(property -> DummySkin.player(player.getName(), property.getValue(), property.getSignature()))
+                .map(property -> DummySkin.player(player.getName(), property.getValue(), property.getSignature(), modelParts))
                 .orElse(DummySkin.NONE);
     }
 
@@ -67,7 +81,7 @@ public final class SkinService {
         }
     }
 
-    private void save() {
+    private synchronized void save() {
         YamlConfiguration config = new YamlConfiguration();
         ConfigurationSection root = config.createSection("skins");
         for (Map.Entry<String, DummySkin> entry : cache.entrySet()) {
@@ -76,6 +90,8 @@ public final class SkinService {
             section.set("type", skin.type());
             section.set("value", skin.value());
             section.set("signature", skin.signature());
+            section.set("model-parts", skin.modelParts());
+            section.set("fetched-at", skin.fetchedAt());
         }
         try {
             config.save(file);
@@ -86,5 +102,17 @@ public final class SkinService {
 
     private String normalize(String playerName) {
         return playerName.toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isExpired(DummySkin skin) {
+        long expiresHours = plugin.getConfig().getLong("skins.cache-expires-hours", DEFAULT_CACHE_EXPIRES_HOURS);
+        if (expiresHours < 0L) {
+            return false;
+        }
+        if (skin.fetchedAt() <= 0L) {
+            return true;
+        }
+        long maxAgeMillis = expiresHours * 60L * 60L * 1000L;
+        return System.currentTimeMillis() - skin.fetchedAt() > maxAgeMillis;
     }
 }

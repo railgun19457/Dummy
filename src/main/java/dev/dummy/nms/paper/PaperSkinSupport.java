@@ -7,11 +7,8 @@ import com.google.common.collect.HashMultimap;
 import dev.dummy.dummy.DummySkin;
 import java.util.UUID;
 import net.minecraft.server.level.ClientInformation;
-import net.minecraft.world.entity.player.PlayerModelPart;
 
 final class PaperSkinSupport {
-    private static final int ALL_MODEL_PARTS = allModelParts();
-
     private PaperSkinSupport() {
     }
 
@@ -26,25 +23,17 @@ final class PaperSkinSupport {
         return new GameProfile(uuid, name, new PropertyMap(properties));
     }
 
-    static ClientInformation withAllModelParts(ClientInformation information) {
+    static ClientInformation withSkinModelParts(ClientInformation information, DummySkin skin) {
         return new ClientInformation(
                 information.language(),
                 information.viewDistance(),
                 information.chatVisibility(),
                 information.chatColors(),
-                ALL_MODEL_PARTS,
+                skin.modelParts(),
                 information.mainHand(),
                 information.textFilteringEnabled(),
                 true,
                 information.particleStatus()
         );
-    }
-
-    private static int allModelParts() {
-        int mask = 0;
-        for (PlayerModelPart part : PlayerModelPart.values()) {
-            mask |= part.getMask();
-        }
-        return mask;
     }
 }

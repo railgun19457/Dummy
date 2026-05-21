@@ -26,6 +26,11 @@ storage:
   # Re-spawning the same name will reuse that data at the new spawn location.
   keep-removed-data: true
 
+skins:
+  # Cached signed Mojang texture properties are reused for this many hours.
+  # Use -1 to keep cached skins forever.
+  cache-expires-hours: 24
+
 inventory:
   # Drop all inventory, armor and offhand items when a dummy leaves through remove/shutdown.
   drop-on-quit: false
