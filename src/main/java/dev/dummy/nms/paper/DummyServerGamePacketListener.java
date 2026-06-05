@@ -2,8 +2,10 @@ package dev.dummy.nms.paper;
 
 import dev.dummy.DummyPlugin;
 import dev.dummy.nms.paper.compat.PaperNmsCompatibility;
+import java.util.Set;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ServerboundAcceptTeleportationPacket;
@@ -14,8 +16,12 @@ import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.Bukkit;
+import org.bukkit.craftbukkit.entity.CraftPlayer;
+import org.bukkit.entity.Player;
 
 public final class DummyServerGamePacketListener extends ServerGamePacketListenerImpl {
+    private static final Set<String> FORWARDED_PLUGIN_CHANNELS = Set.of("astrbot:proxy");
+
     private final DummyPlugin plugin;
     private final PaperNmsCompatibility nmsCompatibility;
 
@@ -30,6 +36,7 @@ public final class DummyServerGamePacketListener extends ServerGamePacketListene
         super(server, connection, player, cookie);
         this.plugin = plugin;
         this.nmsCompatibility = nmsCompatibility;
+        this.pluginMessagerChannels.addAll(FORWARDED_PLUGIN_CHANNELS);
     }
 
     @Override
@@ -41,11 +48,39 @@ public final class DummyServerGamePacketListener extends ServerGamePacketListene
 
     @Override
     public void send(Packet<?> packet) {
+        if (packet instanceof ClientboundCustomPayloadPacket payloadPacket && forwardPluginPayload(payloadPacket)) {
+            return;
+        }
         if (packet instanceof ClientboundSetEntityMotionPacket motionPacket) {
             handleMotionPacket(motionPacket);
         } else if (packet instanceof ClientboundPlayerPositionPacket positionPacket) {
             handlePositionPacket(positionPacket);
         }
+    }
+
+    private boolean forwardPluginPayload(ClientboundCustomPayloadPacket packet) {
+        String channel = packet.payload().type().id().toString();
+        if (!FORWARDED_PLUGIN_CHANNELS.contains(channel)) {
+            return false;
+        }
+        CraftPlayer carrier = pluginMessageCarrier();
+        if (carrier != null) {
+            carrier.getHandle().connection.send(packet);
+        }
+        return true;
+    }
+
+    private CraftPlayer pluginMessageCarrier() {
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (!(online instanceof CraftPlayer craftPlayer) || online.getUniqueId().equals(this.player.getUUID())) {
+                continue;
+            }
+            if (craftPlayer.getHandle().connection == null || craftPlayer.getHandle().connection instanceof DummyServerGamePacketListener) {
+                continue;
+            }
+            return craftPlayer;
+        }
+        return null;
     }
 
     private void handleMotionPacket(ClientboundSetEntityMotionPacket packet) {
