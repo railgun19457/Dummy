@@ -121,7 +121,7 @@ public final class DummyGuiListener implements Listener {
             return;
         }
         syncDummyInventory(event.getInventory(), dummy);
-        dummyManager.save();
+        dummyManager.markDirty(dummy.name());
     }
 
     public void openDummyInventory(Player viewer, DummyInstance dummy) {

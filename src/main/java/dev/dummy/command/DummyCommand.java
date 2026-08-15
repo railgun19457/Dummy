@@ -201,8 +201,8 @@ public final class DummyCommand implements BasicCommand {
 
     private void reload(CommandSender sender) {
         requirePermission(sender, "dummy.command.reload");
+        dummyManager.flushNow();
         plugin.reloadDummyConfig();
-        dummyManager.save();
         message(sender, "command.reload-success", NamedTextColor.GREEN, i18n.language());
     }
 

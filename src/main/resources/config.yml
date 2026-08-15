@@ -20,11 +20,16 @@ limits:
   per-player: -1
 
 storage:
-  # Restore active dummies from dummies.yml when the plugin starts.
+  # Restore active dummies from storage when the plugin starts.
   restore-on-startup: true
   # If enabled, removing a dummy stores its inventory, skin, exp and settings.
   # Re-spawning the same name will reuse that data at the new spawn location.
   keep-removed-data: true
+  # 自动保存间隔（ticks）。dirty 标记会在此周期后批量 upsert 到 sqlite。
+  # 设置为 -1 禁用自动保存，仅在 shutdown 时落盘（不推荐）。
+  auto-save-interval-ticks: 600
+  # 是否从旧 dummies.yml 迁移到 SQLite（dummies.db 已存在时无效）。
+  migrate-from-yml: true
 
 skins:
   # Cached signed Mojang texture properties are reused for this many hours.

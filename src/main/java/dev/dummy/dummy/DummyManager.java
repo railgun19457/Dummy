@@ -18,6 +18,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -46,6 +48,9 @@ public final class DummyManager {
     private final Map<UUID, LoadedChunkTickets> chunkTickets = new LinkedHashMap<>();
     private final Map<ChunkTicket, Integer> chunkTicketRefs = new LinkedHashMap<>();
     private final BukkitTask chunkTicketRefreshTask;
+    private final Set<String> dirtyDummies = ConcurrentHashMap.newKeySet();
+    private final ReentrantLock flushLock = new ReentrantLock();
+    private BukkitTask autoSaveTask;
     private boolean shuttingDown;
 
     public DummyManager(DummyPlugin plugin, FakePlayerAdapter adapter, DummyStorage storage) {
@@ -53,6 +58,94 @@ public final class DummyManager {
         this.adapter = adapter;
         this.storage = storage;
         this.chunkTicketRefreshTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::refreshChunkTickets, 20L, 20L);
+        int interval = plugin.getConfig().getInt("storage.auto-save-interval-ticks", 600);
+        if (interval > 0) {
+            this.autoSaveTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::flushIfDirty, interval, interval);
+        }
+    }
+
+    /**
+     * 标记某个假人数据已变更，待下次 autoSave 周期由异步任务落盘。
+     * 在主线程调用：只更新内存集合，不触发 I/O。
+     */
+    public void markDirty(String name) {
+        dirtyDummies.add(normalize(name));
+    }
+
+    /**
+     * 兼容旧 API 调用：触发 dirty 标记即可，不再做全量同步写盘。
+     */
+    public void save() {
+        // 保留以兼容外部调用；不再做全量同步写盘
+    }
+
+    /**
+     * 周期性 flush dirty 假人：先采集所有 snapshot 再交异步任务批量 upsert。
+     */
+    public void flushIfDirty() {
+        if (dirtyDummies.isEmpty()) {
+            return;
+        }
+        if (!flushLock.tryLock()) {
+            return;
+        }
+        try {
+            List<String> names = new ArrayList<>(dirtyDummies);
+            dirtyDummies.removeAll(names);
+            List<DummyStorage.Snapshot> snapshots = new ArrayList<>(names.size());
+            for (String name : names) {
+                DummyInstance dummy = dummiesByName.get(name);
+                if (dummy == null) {
+                    continue;
+                }
+                try {
+                    snapshots.add(storage.snapshot(dummy, "active"));
+                } catch (RuntimeException ex) {
+                    plugin.getLogger().warning("Failed to snapshot dummy '" + name + "' for autoSave: " + ex.getMessage());
+                }
+            }
+            if (snapshots.isEmpty()) {
+                return;
+            }
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> storage.upsertBatch(snapshots));
+        } finally {
+            flushLock.unlock();
+        }
+    }
+
+    /**
+     * 同步 flush 当前 dirty 假人，阻塞至落盘完成。供 shutdown / reload 使用。
+     */
+    public void flushNow() {
+        if (dirtyDummies.isEmpty()) {
+            return;
+        }
+        flushLock.lock();
+        try {
+            List<String> names = new ArrayList<>(dirtyDummies);
+            dirtyDummies.removeAll(names);
+            List<DummyStorage.Snapshot> snapshots = new ArrayList<>(names.size());
+            for (String name : names) {
+                DummyInstance dummy = dummiesByName.get(name);
+                if (dummy == null) {
+                    continue;
+                }
+                try {
+                    snapshots.add(storage.snapshot(dummy, "active"));
+                } catch (RuntimeException ex) {
+                    plugin.getLogger().warning("Failed to snapshot dummy '" + name + "' for flushNow: " + ex.getMessage());
+                }
+            }
+            if (!snapshots.isEmpty()) {
+                storage.upsertBatch(snapshots);
+            }
+        } finally {
+            flushLock.unlock();
+        }
+    }
+
+    public void shutdownStorage() {
+        storage.close();
     }
 
     public DummyInstance spawn(CommandSender sender, String name, Location location) {
@@ -81,7 +174,7 @@ public final class DummyManager {
             );
             dummy.applyRecord(removed);
             storage.deleteRemoved(name);
-            save();
+            markDirty(name);
             return dummy;
         }
         return spawn(sender, uuidForName(name), creatorUuid(sender), creatorName(sender), name, location, DummySettings.defaults(plugin.getConfig()), skin, true, true);
@@ -99,7 +192,9 @@ public final class DummyManager {
                 plugin.getLogger().warning("Failed to restore dummy '" + record.name() + "': " + ex.getMessage());
             }
         }
-        save();
+        for (DummyInstance dummy : dummiesByName.values()) {
+            markDirty(dummy.name());
+        }
     }
 
     public boolean remove(String name, String reason) {
@@ -133,26 +228,34 @@ public final class DummyManager {
                 removed++;
             }
         }
-        save();
         return removed;
     }
 
     public void shutdown(String reason) {
         shuttingDown = true;
         chunkTicketRefreshTask.cancel();
+        if (autoSaveTask != null) {
+            autoSaveTask.cancel();
+        }
         List<DummyInstance> snapshot = new ArrayList<>(dummiesByName.values());
         for (DummyInstance dummy : snapshot) {
             dropInventoryIfConfigured(dummy);
+            markDirty(dummy.name());
         }
-        save();
+        flushNow();
         for (DummyInstance dummy : snapshot) {
             releaseChunkTicket(dummy);
-            sendProxyTabRemove(dummy);
+            try {
+                sendProxyTabRemove(dummy);
+            } catch (RuntimeException ex) {
+                plugin.getLogger().warning("Failed to send proxy tab removal during shutdown for " + dummy.name() + ": " + ex.getMessage());
+            }
             dummy.handle().remove(Component.text("[Dummy] " + reason));
         }
         dummiesByName.clear();
         dummiesByUuid.clear();
         shuttingDown = false;
+        shutdownStorage();
     }
 
     public void cleanup(Player player) {
@@ -164,9 +267,9 @@ public final class DummyManager {
         dropInventoryIfConfigured(dummy);
         sendProxyTabRemove(dummy);
         dummiesByName.remove(normalize(dummy.name()));
-        if (!shuttingDown) {
-            save();
-        }
+        // cleanup 是被动 cleanup（玩家掉线清理 fake player handle 的副本），并不代表数据落盘需要写
+        // 假人已在 dummiesByName 中移除，dirty flush 取不到 dummy 会跳过。这里清掉避免潜在重复
+        dirtyDummies.remove(normalize(dummy.name()));
     }
 
     public Collection<DummyInstance> all() {
@@ -236,7 +339,8 @@ public final class DummyManager {
         boolean autoResummon = plugin.getConfig().getBoolean("death.auto-resummon", false);
         DummyRecord record = autoResummon ? snapshot(dummy, resummonLocation(player)) : null;
         removeDeadDummy(dummy, !autoResummon);
-        save();
+        // removeDeadDummy 已写入 'removed' 或不需要保存；避免 dirty flush 把 row 改回 active
+        dirtyDummies.remove(normalize(dummy.name()));
 
         if (record != null) {
             Bukkit.getScheduler().runTask(plugin, () -> restoreResummoned(record));
@@ -264,10 +368,6 @@ public final class DummyManager {
         }
     }
 
-    public void save() {
-        storage.save(dummiesByName.values());
-    }
-
     public DummySettings updateSettings(String name, String key, String value) {
         DummyInstance dummy = require(name);
         DummySettings settings = dummy.settings().with(key, value);
@@ -278,7 +378,7 @@ public final class DummyManager {
             updateTabVisibility(dummy);
         }
         sendProxyTabUpdate(dummy);
-        save();
+        markDirty(name);
         return settings;
     }
 
@@ -287,14 +387,14 @@ public final class DummyManager {
         dummy.skin(skin);
         dummy.handle().applySkin(skin);
         sendProxyTabUpdate(dummy);
-        save();
+        markDirty(name);
     }
 
     public void teleportDummy(String name, Location location) {
         DummyInstance dummy = require(name);
         dummy.handle().teleport(location);
         updateChunkTicket(dummy);
-        save();
+        markDirty(name);
     }
 
     public void teleportPlayerToDummy(Player player, String name) {
@@ -309,7 +409,7 @@ public final class DummyManager {
         player.teleport(dummyLocation);
         dummy.handle().teleport(playerLocation);
         updateChunkTicket(dummy);
-        save();
+        markDirty(name);
     }
 
     public int transferExperience(String name, Player receiver, boolean all, int amount) {
@@ -325,7 +425,7 @@ public final class DummyManager {
         source.setTotalExperience(0);
         source.giveExp(available - transferred, false);
         receiver.giveExp(transferred, true);
-        save();
+        markDirty(name);
         return transferred;
     }
 
@@ -345,18 +445,17 @@ public final class DummyManager {
         releaseChunkTicket(dummy);
         dropInventoryIfConfigured(dummy);
         if (keepData) {
-            storage.saveRemoved(dummy);
+            storage.markRemoved(dummy);
         } else {
             storage.deleteRemoved(dummy.name());
         }
         dummiesByName.remove(normalize(dummy.name()));
         dummiesByUuid.remove(dummy.uuid());
+        // 避免 markRemoved/deleteRemoved 之后 dirty flush 又把 row 重新 upsert 回来
+        dirtyDummies.remove(normalize(dummy.name()));
         sendProxyTabRemove(dummy);
         dummy.handle().remove(Component.text("[Dummy] " + reason));
         broadcastQuit(dummy);
-        if (save) {
-            save();
-        }
     }
 
     private DummyInstance spawn(
@@ -399,7 +498,7 @@ public final class DummyManager {
             plugin.getLogger().info(sender.getName() + " spawned dummy " + name + " at " + formatLocation(location));
         }
         if (save) {
-            save();
+            markDirty(name);
         }
         return dummy;
     }
@@ -571,7 +670,7 @@ public final class DummyManager {
         dummiesByName.remove(normalize(dummy.name()));
         dummiesByUuid.remove(dummy.uuid());
         if (saveRemoved) {
-            storage.saveRemoved(dummy);
+            storage.markRemoved(dummy);
         }
         sendProxyTabRemove(dummy);
         dummy.handle().remove(Component.text("[Dummy] died"));
@@ -600,7 +699,7 @@ public final class DummyManager {
             resummoned.applyRecord(record);
             resummoned.handle().applySettings(resummoned.name(), resummoned.settings());
             updateChunkTicket(resummoned);
-            save();
+            markDirty(record.name());
         } catch (RuntimeException ex) {
             plugin.getLogger().warning("Failed to resummon dummy '" + record.name() + "': " + ex.getMessage());
         }

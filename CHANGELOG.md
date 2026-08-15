@@ -1,5 +1,14 @@
 # 更新日志
 
+## 0.4.0 - 2026-08-15
+
+- 持久化后端从 `dummies.yml` 切换到 SQLite (`plugins/Dummy/dummies.db`)，单行 upsert 替代全量重写，彻底消除高频写盘导致的主线程卡顿。
+- SQLite 启用 WAL 模式，读写互不阻塞；Bukkit `BukkitObjectOutputStream` 序列化 `ItemStack[]` 到 BLOB，跨版本兼容。
+- 首次启动时检测到旧 `dummies.yml` 会自动迁移到 `dummies.db`，完成后把 yml 重命名为 `dummies.yml.bak`，无需手动操作。
+- 引入 dirty 标记 + 周期性异步保存（`storage.auto-save-interval-ticks` 默认 600 ticks = 30s），循环动作 (`mine repeat` / `place repeat` / `move repeat`) 不再每个 tick 阻塞主线程。
+- `DummyActionService` 4 处同步 save 和 `DummyGuiListener.onInventoryClose` 改为 `markDirty`，避免动作循环与 GUI 操作连环写盘。
+- `DummyManager.shutdown` 与 `/dummy reload` 改为先同步 `flushNow` 落盘再执行后续逻辑，保证正常关机和重载的数据完整性。
+
 ## 0.3.1 - 2026-06-05
 
 - 修复 AstrBotAdapter 代理模式误选 Dummy 假人为 `astrbot:proxy` 插件消息载体时，后端认证、心跳和上报信道可能中断的问题。

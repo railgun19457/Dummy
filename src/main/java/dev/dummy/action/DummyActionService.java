@@ -66,7 +66,7 @@ public final class DummyActionService {
 
         if (!repeat) {
             perform(dummy, normalized, args, false);
-            dummyManager.save();
+            dummyManager.markDirty(dummy.name());
             return;
         }
 
@@ -332,7 +332,8 @@ public final class DummyActionService {
         if (!destroyBlock(player, block)) {
             throw new LocalizedException("error.mine-failed");
         }
-        dummyManager.save();
+        player.swingMainHand();
+        dummyManager.markDirty(player.getName());
     }
 
     private void mount(Player player) {
@@ -409,7 +410,7 @@ public final class DummyActionService {
             throw new LocalizedException("error.place-failed");
         }
         player.swingMainHand();
-        dummyManager.save();
+        dummyManager.markDirty(player.getName());
     }
 
     private void swapHands(Player player) {
@@ -679,7 +680,7 @@ public final class DummyActionService {
                 return false;
             }
         }
-        dummyManager.save();
+        dummyManager.markDirty(dummy.name());
         return true;
     }
 
