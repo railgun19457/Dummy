@@ -38,7 +38,8 @@ public final class DummyLifecycleListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (event.getPlayer().isOnline() && !dummyManager.isDummy(event.getPlayer())) {
-                dummyManager.applyTabVisibility(event.getPlayer());
+                // 仅同步 tab listed 标志，不触碰实体追踪 — vanilla ChunkMap 自动处理实体可见性
+                dummyManager.applyListedVisibility(event.getPlayer());
                 dummyManager.syncProxyTab();
             }
         }, JOIN_DUMMY_SYNC_DELAY_TICKS);

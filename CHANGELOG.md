@@ -1,5 +1,12 @@
 # 更新日志
 
+## 0.4.1 - 2026-08-16
+
+- 修复玩家上线后假人间歇性不可见的问题。根因是 `PaperDummyHandle` 在 `onPlayerJoin` 和换肤时对实体追踪做了"先 untrack 再延迟 re-track"的破坏式重建，延迟任务可能因 generation 不匹配或玩家状态变化被静默丢弃，导致实体永久不可见。
+- 皮肤切换改用 Paper `PlayerProfile` API（`Player.setPlayerProfile`），由 Paper 原子广播 `ClientboundPlayerInfoUpdatePacket`，不再手动 untrack/re-track 实体。
+- 玩家上线时只同步 PlayerInfo 的 listed 标志（`updateListed`），不触碰实体追踪——vanilla `ChunkMap` 自动处理新上线玩家的实体 spawn。
+- 删除 `PaperDummyHandle` 的实体追踪状态机（`viewerEntityGenerations` / `viewerTabGenerations` / 延迟任务 / `NoOpSynchronizer` / `sendEntityPairingData` fallback），清理 `PaperNmsCompatibility` 的 `removeTrackedViewer` / `updateTrackedViewer` 方法。
+
 ## 0.4.0 - 2026-08-15
 
 - 持久化后端从 `dummies.yml` 切换到 SQLite (`plugins/Dummy/dummies.db`)，单行 upsert 替代全量重写，彻底消除高频写盘导致的主线程卡顿。

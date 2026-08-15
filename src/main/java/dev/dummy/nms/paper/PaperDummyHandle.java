@@ -1,22 +1,15 @@
 package dev.dummy.nms.paper;
 
-import dev.dummy.DummyPlugin;
+import com.destroystokyo.paper.profile.PlayerProfile;
+import com.destroystokyo.paper.profile.ProfileProperty;
 import dev.dummy.dummy.DummySettings;
 import dev.dummy.dummy.DummySkin;
 import dev.dummy.nms.DummyHandle;
-import dev.dummy.nms.paper.compat.PaperNmsCompatibility;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import net.kyori.adventure.text.Component;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundBundlePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
-import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerPlayer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -27,27 +20,24 @@ import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 import org.bukkit.scheduler.BukkitTask;
 
+/**
+ * 基于 Paper 的假人句柄实现。
+ *
+ * <p>可见性策略：完全依赖 vanilla {@code ChunkMap} 的实体追踪，插件不主动 untrack/re-track。
+ * 只有在需要调整 PlayerInfo 的 listed 标志或销毁假人时才手动发包。
+ * 皮肤切换走 Paper {@link Player#setPlayerProfile(PlayerProfile)} API，由 Paper 负责原子广播。</p>
+ */
 public final class PaperDummyHandle implements DummyHandle {
     private static final String NO_COLLISION_TEAM = "dummy_no_collision";
-    private static final long PROFILE_TO_ENTITY_DELAY_TICKS = 10L;
-    private static final long PROFILE_REPLACE_DELAY_TICKS = 20L;
-    private static final long HIDE_TAB_DELAY_TICKS = 40L;
+    private static final String TEXTURES_PROPERTY = "textures";
 
-    private final DummyPlugin plugin;
     private final ServerPlayer handle;
-    private final PaperNmsCompatibility nmsCompatibility;
     private final BukkitTask tickerTask;
-    private final Map<UUID, Long> viewerEntityGenerations = new LinkedHashMap<>();
-    private final Map<UUID, Long> viewerTabGenerations = new LinkedHashMap<>();
     private boolean removed;
     private boolean listed = true;
-    private long entityRefreshGeneration;
-    private long tabRefreshGeneration;
 
-    public PaperDummyHandle(DummyPlugin plugin, ServerPlayer handle, PaperNmsCompatibility nmsCompatibility, BukkitTask tickerTask) {
-        this.plugin = plugin;
+    public PaperDummyHandle(ServerPlayer handle, BukkitTask tickerTask) {
         this.handle = handle;
-        this.nmsCompatibility = nmsCompatibility;
         this.tickerTask = tickerTask;
     }
 
@@ -80,14 +70,29 @@ public final class PaperDummyHandle implements DummyHandle {
 
     @Override
     public void applySkin(DummySkin skin) {
-        handle.gameProfile = PaperSkinSupport.createProfile(handle.getUUID(), handle.getGameProfile().name(), skin);
+        // 通过 Paper 的 PlayerProfile API 原子更新皮肤，由 Paper 负责广播 ClientboundPlayerInfoUpdatePacket。
+        // 不再手动 untrack / re-track 实体，避免破坏 vanilla ChunkMap 已建立的追踪状态。
+        Player player = player();
+        PlayerProfile profile = player.getPlayerProfile();
+        if (skin.hasTexture()) {
+            profile.setProperty(new ProfileProperty(
+                    TEXTURES_PROPERTY,
+                    skin.value(),
+                    skin.signature().isBlank() ? null : skin.signature()
+            ));
+        } else {
+            profile.removeProperty(TEXTURES_PROPERTY);
+        }
+        player.setPlayerProfile(profile);
+        // 同步更新模型部件（披风等），通过 NMS 更新 client information
         handle.updateOptionsNoEvents(PaperSkinSupport.withSkinModelParts(handle.clientInformation(), skin));
-        refreshSkinForViewers();
     }
 
     @Override
     public void refreshForViewer(Player viewer, boolean listed) {
-        refreshProfileForViewer(viewer, listed, PROFILE_TO_ENTITY_DELAY_TICKS);
+        // 不再主动操作实体追踪。vanilla ChunkMap 会在玩家进入追踪范围时自动处理实体 spawn。
+        // 仅同步 PlayerInfo 的 listed 标志，确保 showInTab 设置生效。
+        updateListedForViewer(viewer, listed);
     }
 
     @Override
@@ -95,31 +100,12 @@ public final class PaperDummyHandle implements DummyHandle {
         if (viewer.getUniqueId().equals(handle.getUUID())) {
             return;
         }
-        nextTabGeneration(viewer);
-        if (listed) {
-            sendPlayerInfo(viewer, true);
+        if (!(viewer instanceof CraftPlayer craftPlayer)) {
             return;
         }
-        sendListed(viewer, false);
-    }
-
-    private void refreshProfileForViewer(Player viewer, boolean listed) {
-        refreshProfileForViewer(viewer, listed, PROFILE_REPLACE_DELAY_TICKS);
-    }
-
-    private void refreshProfileForViewer(Player viewer, boolean listed, long respawnDelayTicks) {
-        if (viewer.getUniqueId().equals(handle.getUUID())) {
-            return;
-        }
-        long entityGeneration = nextEntityGeneration(viewer);
-        long tabGeneration = nextTabGeneration(viewer);
-        untrackForViewer(viewer);
-        sendPlayerInfoRemove(viewer);
-        sendPlayerInfo(viewer, true);
-        runIfCurrentEntity(viewer, entityGeneration, respawnDelayTicks, () -> trackForViewer(viewer));
-        if (!listed) {
-            runIfCurrentTab(viewer, tabGeneration, respawnDelayTicks + HIDE_TAB_DELAY_TICKS, () -> sendListed(viewer, false));
-        }
+        craftPlayer.getHandle().connection.send(
+                ClientboundPlayerInfoUpdatePacket.updateListed(handle.getUUID(), listed)
+        );
     }
 
     @Override
@@ -129,8 +115,6 @@ public final class PaperDummyHandle implements DummyHandle {
         }
         removed = true;
         tickerTask.cancel();
-        viewerEntityGenerations.clear();
-        viewerTabGenerations.clear();
         Player player = player();
         removeCollisionRule(player);
         sendRemovePackets();
@@ -169,25 +153,11 @@ public final class PaperDummyHandle implements DummyHandle {
 
     private void sendRemovePackets() {
         var removeInfo = new ClientboundPlayerInfoRemovePacket(List.of(handle.getUUID()));
-        sendRemoveEntityPacket();
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            if (online instanceof CraftPlayer craftPlayer && !online.getUniqueId().equals(handle.getUUID())) {
-                craftPlayer.getHandle().connection.send(removeInfo);
-            }
-        }
-    }
-
-    private void sendRemoveEntityPacket(Player viewer) {
-        if (viewer instanceof CraftPlayer craftPlayer) {
-            craftPlayer.getHandle().connection.send(new ClientboundRemoveEntitiesPacket(handle.getId()));
-        }
-    }
-
-    private void sendRemoveEntityPacket() {
         var removeEntity = new ClientboundRemoveEntitiesPacket(handle.getId());
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (online instanceof CraftPlayer craftPlayer && !online.getUniqueId().equals(handle.getUUID())) {
                 craftPlayer.getHandle().connection.send(removeEntity);
+                craftPlayer.getHandle().connection.send(removeInfo);
             }
         }
     }
@@ -197,103 +167,4 @@ public final class PaperDummyHandle implements DummyHandle {
             dummyConnection.closeDummyConnection();
         }
     }
-
-    private void refreshSkinForViewers() {
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            refreshProfileForViewer(online, listed);
-        }
-    }
-
-    private void sendPlayerInfoRemove(Player viewer) {
-        if (viewer instanceof CraftPlayer craftPlayer) {
-            craftPlayer.getHandle().connection.send(new ClientboundPlayerInfoRemovePacket(List.of(handle.getUUID())));
-        }
-    }
-
-    private void sendPlayerInfo(Player viewer, boolean listed) {
-        if (viewer instanceof CraftPlayer craftPlayer) {
-            var add = ClientboundPlayerInfoUpdatePacket.createSinglePlayerInitializing(handle, listed);
-            craftPlayer.getHandle().connection.send(add);
-        }
-    }
-
-    private void sendListed(Player viewer, boolean listed) {
-        if (viewer instanceof CraftPlayer craftPlayer) {
-            craftPlayer.getHandle().connection.send(ClientboundPlayerInfoUpdatePacket.updateListed(handle.getUUID(), listed));
-        }
-    }
-
-    private void untrackForViewer(Player viewer) {
-        if (!(viewer instanceof CraftPlayer craftPlayer) || !nmsCompatibility.removeTrackedViewer(handle, craftPlayer.getHandle())) {
-            sendRemoveEntityPacket(viewer);
-        }
-    }
-
-    private void trackForViewer(Player viewer) {
-        if (!(viewer instanceof CraftPlayer craftPlayer) || !nmsCompatibility.updateTrackedViewer(handle, craftPlayer.getHandle())) {
-            sendEntityPairingData(viewer);
-        }
-    }
-
-    private void sendEntityPairingData(Player viewer) {
-        if (!(viewer instanceof CraftPlayer craftPlayer)) {
-            return;
-        }
-        ServerEntity entityTracker = new ServerEntity(handle.level(), handle, 0, false, NoOpSynchronizer.INSTANCE, java.util.Set.of());
-        java.util.List<Packet<? super ClientGamePacketListener>> packets = new java.util.ArrayList<>();
-        entityTracker.sendPairingData(craftPlayer.getHandle(), packets::add);
-        if (!packets.isEmpty()) {
-            craftPlayer.getHandle().connection.send(new ClientboundBundlePacket(packets));
-        }
-    }
-
-    private long nextEntityGeneration(Player viewer) {
-        long generation = ++entityRefreshGeneration;
-        viewerEntityGenerations.put(viewer.getUniqueId(), generation);
-        return generation;
-    }
-
-    private long nextTabGeneration(Player viewer) {
-        long generation = ++tabRefreshGeneration;
-        viewerTabGenerations.put(viewer.getUniqueId(), generation);
-        return generation;
-    }
-
-    private void runIfCurrentEntity(Player viewer, long generation, long delayTicks, Runnable task) {
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (!removed && player().isOnline() && viewer.isOnline() && isCurrent(viewerEntityGenerations, viewer, generation)) {
-                task.run();
-            }
-        }, delayTicks);
-    }
-
-    private void runIfCurrentTab(Player viewer, long generation, long delayTicks, Runnable task) {
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (!removed && player().isOnline() && viewer.isOnline() && isCurrent(viewerTabGenerations, viewer, generation)) {
-                task.run();
-            }
-        }, delayTicks);
-    }
-
-    private boolean isCurrent(Map<UUID, Long> generations, Player viewer, long generation) {
-        Long current = generations.get(viewer.getUniqueId());
-        return current != null && current == generation;
-    }
-
-    private enum NoOpSynchronizer implements ServerEntity.Synchronizer {
-        INSTANCE;
-
-        @Override
-        public void sendToTrackingPlayers(Packet<? super ClientGamePacketListener> packet) {
-        }
-
-        @Override
-        public void sendToTrackingPlayersAndSelf(Packet<? super ClientGamePacketListener> packet) {
-        }
-
-        @Override
-        public void sendToTrackingPlayersFiltered(Packet<? super ClientGamePacketListener> packet, java.util.function.Predicate<ServerPlayer> predicate) {
-        }
-    }
-
 }

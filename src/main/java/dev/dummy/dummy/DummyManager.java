@@ -365,7 +365,11 @@ public final class DummyManager {
         return dummiesByUuid.containsKey(player.getUniqueId());
     }
 
-    public void applyTabVisibility(Player viewer) {
+    /**
+     * 玩家上线时同步所有假人的 tab listed 状态。
+     * 不做实体追踪操作 — vanilla 会在玩家进入追踪范围时自动 spawn 附近实体。
+     */
+    public void applyListedVisibility(Player viewer) {
         for (DummyInstance dummy : dummiesByName.values()) {
             applyTabVisibility(viewer, dummy);
         }
@@ -532,7 +536,8 @@ public final class DummyManager {
         if (viewer.getUniqueId().equals(dummy.uuid()) || isDummy(viewer)) {
             return;
         }
-        dummy.handle().refreshForViewer(viewer, dummy.settings().showInTab());
+        // 仅同步 listed 标志，不碰实体追踪 — vanilla ChunkMap 自动处理实体可见性
+        dummy.handle().updateListedForViewer(viewer, dummy.settings().showInTab());
     }
 
     private void sendProxyTabUpdate(DummyInstance dummy) {

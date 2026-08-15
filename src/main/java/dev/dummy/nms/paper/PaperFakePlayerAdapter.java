@@ -71,7 +71,7 @@ public final class PaperFakePlayerAdapter implements FakePlayerAdapter {
 
         DummyTicker ticker = new DummyTicker(serverPlayer);
         BukkitTask tickerTask = ticker.runTaskTimer(plugin, 0L, 1L);
-        PaperDummyHandle handle = new PaperDummyHandle(plugin, serverPlayer, nmsCompatibility, tickerTask);
+        PaperDummyHandle handle = new PaperDummyHandle(serverPlayer, tickerTask);
         handle.applySettings(request.name(), request.settings());
         return handle;
     }
