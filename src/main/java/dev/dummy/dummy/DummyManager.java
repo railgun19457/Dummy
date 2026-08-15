@@ -267,9 +267,19 @@ public final class DummyManager {
         dropInventoryIfConfigured(dummy);
         sendProxyTabRemove(dummy);
         dummiesByName.remove(normalize(dummy.name()));
-        // cleanup 是被动 cleanup（玩家掉线清理 fake player handle 的副本），并不代表数据落盘需要写
-        // 假人已在 dummiesByName 中移除，dirty flush 取不到 dummy 会跳过。这里清掉避免潜在重复
+        // 避免 dirty flush 把已离开的假人重新 upsert 回 active state
         dirtyDummies.remove(normalize(dummy.name()));
+        if (!shuttingDown) {
+            // 修复 0.3.x 遗留 bug：被动退出（如 /kick fake player、NMS 强制断开）也应当尊重
+            // storage.keep-removed-data 配置，避免在 keep-removed-data=true 时直接丢弃假人数据。
+            // shutdown 路径已由 shutdown() 内部统一 flushNow + markDirty，这里跳过避免重复写入。
+            if (plugin.getConfig().getBoolean("storage.keep-removed-data", true)) {
+                storage.markRemoved(dummy);
+            } else {
+                storage.deleteRemoved(dummy.name());
+            }
+            broadcastQuit(dummy);
+        }
     }
 
     public Collection<DummyInstance> all() {
