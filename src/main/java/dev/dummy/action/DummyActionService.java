@@ -5,6 +5,7 @@ import dev.dummy.dummy.DummyInstance;
 import dev.dummy.dummy.DummyManager;
 import dev.dummy.i18n.LocalizedException;
 import io.papermc.paper.entity.LookAnchor;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,10 +25,13 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.craftbukkit.block.CraftBlock;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
+import org.bukkit.entity.Boat;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Vehicle;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
@@ -48,13 +52,89 @@ public final class DummyActionService {
 
     private final DummyPlugin plugin;
     private final DummyManager dummyManager;
-    private final Map<UUID, Map<String, BukkitTask>> tasks = new LinkedHashMap<>();
+    private final Map<UUID, Map<String, ActiveAction>> tasks = new LinkedHashMap<>();
     private final Map<UUID, MineState> mineStates = new LinkedHashMap<>();
     private final Map<UUID, LockedTarget> lockedTargets = new LinkedHashMap<>();
 
     public DummyActionService(DummyPlugin plugin, DummyManager dummyManager) {
         this.plugin = plugin;
         this.dummyManager = dummyManager;
+    }
+
+    /**
+     * Re-apply a set of previously persisted repeat actions (e.g. after a
+     * plugin restart). Each command string is the raw user input that
+     * originally followed {@code /dummy <name> actions ...} — i.e. the
+     * action keyword plus its arguments and optional {@code repeat} clause.
+     * Unknown or malformed commands are skipped with a warning.
+     */
+    public void restoreActions(DummyInstance dummy, List<String> commands) {
+        if (commands == null || commands.isEmpty()) {
+            return;
+        }
+        for (String command : commands) {
+            if (command == null || command.isBlank()) {
+                continue;
+            }
+            try {
+                String[] parts = command.trim().split("\\s+");
+                if (parts.length == 0) {
+                    continue;
+                }
+                String action = parts[0].toLowerCase(Locale.ROOT);
+                String[] args = java.util.Arrays.copyOfRange(parts, 1, parts.length);
+                boolean repeat = false;
+                int interval = DummyActionService.defaultRepeatInterval(action);
+                int duration = -1;
+                int repeatIndex = -1;
+                for (int i = 0; i < args.length; i++) {
+                    if (args[i].equalsIgnoreCase("repeat")) {
+                        repeat = true;
+                        repeatIndex = i;
+                        break;
+                    }
+                }
+                if (repeat) {
+                    for (int i = repeatIndex + 1; i < args.length; i++) {
+                        String opt = args[i];
+                        if (opt.toLowerCase(Locale.ROOT).startsWith("interval:")) {
+                            try {
+                                interval = Math.max(1, Integer.parseInt(opt.substring("interval:".length())));
+                            } catch (NumberFormatException ignored) { }
+                        } else if (opt.toLowerCase(Locale.ROOT).startsWith("duration:")) {
+                            try {
+                                duration = Math.max(0, Integer.parseInt(opt.substring("duration:".length())));
+                            } catch (NumberFormatException ignored) { }
+                        }
+                    }
+                    String[] actionArgs = java.util.Arrays.copyOfRange(args, 0, repeatIndex);
+                    run(dummy, action, actionArgs, true, interval, duration);
+                } else {
+                    // Persisted as repeat (per schema) but command lacked the
+                    // 'repeat' keyword — restore as repeat with default interval.
+                    run(dummy, action, args, true, interval, duration);
+                }
+            } catch (RuntimeException ex) {
+                plugin.getLogger().warning("Failed to restore action '" + command + "' for dummy " + dummy.name() + ": " + ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Snapshot the repeat actions currently scheduled for a dummy so they
+     * can be persisted and later replayed via {@link #restoreActions}.
+     * Returns an empty list for dummies with no scheduled actions.
+     */
+    public List<String> snapshotActions(UUID dummyUuid) {
+        Map<String, ActiveAction> dummyTasks = tasks.get(dummyUuid);
+        if (dummyTasks == null || dummyTasks.isEmpty()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>(dummyTasks.size());
+        for (ActiveAction active : dummyTasks.values()) {
+            result.add(active.toCommand());
+        }
+        return result;
     }
 
     public void run(DummyInstance dummy, String action, String[] args, boolean repeat, int intervalTicks, int durationTicks) {
@@ -96,36 +176,44 @@ public final class DummyActionService {
                 stopTask(uuid, normalized, current);
             }
         }, 0L, interval);
-        tasks.computeIfAbsent(uuid, ignored -> new LinkedHashMap<>()).put(normalized, task);
+        tasks.computeIfAbsent(uuid, ignored -> new LinkedHashMap<>()).put(normalized, new ActiveAction(task, normalized, args, interval, durationTicks));
+        dummyManager.markDirty(dummy.name());
     }
 
     public int stop(DummyInstance dummy, String action) {
-        Map<String, BukkitTask> dummyTasks = tasks.get(dummy.uuid());
+        Map<String, ActiveAction> dummyTasks = tasks.get(dummy.uuid());
         if (action == null || action.isBlank()) {
             int size = 0;
             if (dummyTasks != null) {
                 size = dummyTasks.size();
-                dummyTasks.values().forEach(BukkitTask::cancel);
+                dummyTasks.values().forEach(ActiveAction::cancel);
                 dummyTasks.clear();
             }
             tasks.remove(dummy.uuid());
             resetAll(dummy);
+            if (size > 0) {
+                dummyManager.markDirty(dummy.name());
+            }
             return size;
         }
 
         String normalized = normalize(action);
-        BukkitTask task = dummyTasks == null ? null : dummyTasks.remove(normalized);
-        if (task != null) {
-            task.cancel();
+        ActiveAction active = dummyTasks == null ? null : dummyTasks.remove(normalized);
+        if (active != null) {
+            active.cancel();
         }
         if (dummyTasks != null && dummyTasks.isEmpty()) {
             tasks.remove(dummy.uuid());
         }
-        return resetAction(dummy, normalized) || task != null ? 1 : 0;
+        boolean reset = resetAction(dummy, normalized);
+        if (active != null || reset) {
+            dummyManager.markDirty(dummy.name());
+        }
+        return active != null || reset ? 1 : 0;
     }
 
     public List<String> activeActions(DummyInstance dummy) {
-        Map<String, BukkitTask> dummyTasks = tasks.get(dummy.uuid());
+        Map<String, ActiveAction> dummyTasks = tasks.get(dummy.uuid());
         if (dummyTasks == null || dummyTasks.isEmpty()) {
             return List.of();
         }
@@ -345,6 +433,9 @@ public final class DummyActionService {
         if (target == null) {
             throw new LocalizedException("error.no-mountable-entity");
         }
+        if (target instanceof Vehicle) {
+            target.setPersistent(true);
+        }
         target.addPassenger(player);
     }
 
@@ -428,13 +519,34 @@ public final class DummyActionService {
     private Entity nearestEntity(Player player, double range) {
         return player.getNearbyEntities(range, range, range)
                 .stream()
-                .filter(entity -> entity instanceof LivingEntity)
                 .filter(entity -> !entity.equals(player))
+                .filter(DummyActionService::isMountable)
                 .min((left, right) -> Double.compare(
                         left.getLocation().distanceSquared(player.getLocation()),
                         right.getLocation().distanceSquared(player.getLocation())
                 ))
                 .orElse(null);
+    }
+
+    /**
+     * Whether an entity can be ridden by a dummy player. The previous
+     * {@code LivingEntity}-only filter excluded boats and minecarts (which
+     * implement {@link Vehicle} but not {@link LivingEntity}), so they are
+     * matched explicitly here.
+     */
+    private static boolean isMountable(Entity entity) {
+        return entity instanceof LivingEntity
+                || entity instanceof Boat
+                || entity instanceof Minecart;
+    }
+
+    /**
+     * Whether a non-living entity can be selected as a look/attack target.
+     * Mirrors {@link #isMountable(Entity)}: boats and minecarts are the only
+     * non-living entities currently worth tracking for dummy gaze/aim.
+     */
+    private static boolean isLookable(Entity entity) {
+        return entity instanceof Boat || entity instanceof Minecart;
     }
 
     private Entity resolveLookTarget(Player player, LookTargetType targetType, String targetName) {
@@ -519,7 +631,16 @@ public final class DummyActionService {
     }
 
     private boolean isTargetCandidate(Player player, Entity entity, LookTargetType targetType, double range, boolean requireLineOfSight) {
-        if (!(entity instanceof LivingEntity) || entity.equals(player) || !entity.isValid() || entity.isDead()) {
+        if (entity == null || entity.equals(player) || !entity.isValid()) {
+            return false;
+        }
+        if (entity instanceof LivingEntity living && living.isDead()) {
+            return false;
+        }
+        // Non-living entities (boats, minecarts, etc.) are valid look/attack
+        // targets only when explicitly allowed by isLookable, since the previous
+        // LivingEntity-only filter silently dropped them.
+        if (!(entity instanceof LivingEntity) && !isLookable(entity)) {
             return false;
         }
         if (!entity.getWorld().equals(player.getWorld())) {
@@ -685,10 +806,10 @@ public final class DummyActionService {
     }
 
     private void stopTask(UUID uuid, String action, DummyInstance dummy) {
-        Map<String, BukkitTask> dummyTasks = tasks.get(uuid);
-        BukkitTask task = dummyTasks == null ? null : dummyTasks.remove(action);
-        if (task != null) {
-            task.cancel();
+        Map<String, ActiveAction> dummyTasks = tasks.get(uuid);
+        ActiveAction active = dummyTasks == null ? null : dummyTasks.remove(action);
+        if (active != null) {
+            active.cancel();
         }
         if (dummyTasks != null && dummyTasks.isEmpty()) {
             tasks.remove(uuid);
@@ -806,5 +927,35 @@ public final class DummyActionService {
         ANY,
         PLAYER,
         MONSTER
+    }
+
+    /**
+     * Holds a scheduled repeat action alongside the raw input needed to
+     * recreate it, so it can be persisted across plugin restarts and
+     * replayed via {@link #restoreActions}.
+     */
+    private record ActiveAction(BukkitTask task, String action, String[] args, int intervalTicks, int durationTicks) {
+        void cancel() {
+            task.cancel();
+        }
+
+        /**
+         * Reconstruct the {@code /dummy <name> actions ...} command body
+         * that originally scheduled this action.
+         */
+        String toCommand() {
+            StringBuilder sb = new StringBuilder(action);
+            for (String arg : args) {
+                sb.append(' ').append(arg);
+            }
+            sb.append(" repeat");
+            if (intervalTicks > 0 && intervalTicks != DummyActionService.defaultRepeatInterval(action)) {
+                sb.append(" interval:").append(intervalTicks);
+            }
+            if (durationTicks > 0) {
+                sb.append(" duration:").append(durationTicks);
+            }
+            return sb.toString();
+        }
     }
 }

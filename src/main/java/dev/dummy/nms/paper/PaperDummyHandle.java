@@ -116,6 +116,14 @@ public final class PaperDummyHandle implements DummyHandle {
         removed = true;
         tickerTask.cancel();
         Player player = player();
+        // PlayerList.remove/discard may remove a vehicle that still contains
+        // this synthetic ServerPlayer. Detach first so the vehicle survives
+        // dummy removal and can be reused during the next restore.
+        org.bukkit.entity.Entity vehicle = player.getVehicle();
+        if (vehicle != null) {
+            vehicle.setPersistent(true);
+            player.leaveVehicle();
+        }
         removeCollisionRule(player);
         sendRemovePackets();
         closeConnection();

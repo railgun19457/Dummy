@@ -40,6 +40,7 @@ public final class DummyPlugin extends JavaPlugin {
 
         SkinService skinService = new SkinService(this);
         DummyActionService actionService = new DummyActionService(this, dummyManager);
+        dummyManager.setActionService(actionService);
         DummyGuiListener guiListener = new DummyGuiListener(this, dummyManager, i18n);
         DummyCommand dummyCommand = new DummyCommand(this, dummyManager, skinService, actionService, i18n, guiListener);
         registerCommand("dummy", "Manage dummy players.", List.of("dm"), dummyCommand);

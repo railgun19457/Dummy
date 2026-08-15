@@ -63,7 +63,9 @@ public final class DummyStorage {
                 exp_level        INTEGER NOT NULL,
                 exp_progress     REAL NOT NULL,
                 exp_total        INTEGER NOT NULL,
-                state            TEXT NOT NULL
+                state            TEXT NOT NULL,
+                vehicle_uuid     TEXT,
+                active_actions   TEXT
             )
             """;
     private static final String INDEX_STATE_SQL = "CREATE INDEX IF NOT EXISTS idx_dummies_state ON dummies(state)";
@@ -75,8 +77,9 @@ public final class DummyStorage {
                 invulnerable, collision, ghost, chunk_loader, show_in_tab, name_format,
                 skin_type, skin_value, skin_signature, skin_model_parts, skin_fetched_at,
                 storage_contents, armor_contents, offhand_item,
-                exp_level, exp_progress, exp_total, state
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                exp_level, exp_progress, exp_total, state,
+                vehicle_uuid, active_actions
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
     private static final String SELECT_ACTIVE_SQL = "SELECT * FROM dummies WHERE state = 'active'";
     private static final String SELECT_REMOVED_SQL = "SELECT * FROM dummies WHERE name = ? COLLATE NOCASE AND state = 'removed'";
@@ -124,7 +127,23 @@ public final class DummyStorage {
             stmt.execute(SCHEMA_SQL);
             stmt.execute(INDEX_STATE_SQL);
             stmt.execute(INDEX_UUID_SQL);
+            // Incremental column additions for existing databases created
+            // before vehicle_uuid / active_actions were introduced.
+            addColumnIfMissing(stmt, "dummies", "vehicle_uuid", "TEXT");
+            addColumnIfMissing(stmt, "dummies", "active_actions", "TEXT");
         }
+    }
+
+    private void addColumnIfMissing(Statement stmt, String table, String column, String type) throws SQLException {
+        try (ResultSet rs = stmt.executeQuery("PRAGMA table_info(" + table + ")")) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("name"))) {
+                    return;
+                }
+            }
+        }
+        stmt.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + type);
+        plugin.getLogger().info("Added column '" + column + "' to table '" + table + "'");
     }
 
     public List<DummyRecord> load() {
@@ -271,7 +290,9 @@ public final class DummyStorage {
         ps.setInt(i++, experience.level());
         ps.setFloat(i++, experience.progress());
         ps.setInt(i++, experience.total());
-        ps.setString(i, state);
+        ps.setString(i++, state);
+        ps.setString(i++, record.vehicleUuid() == null ? null : record.vehicleUuid().toString());
+        ps.setString(i, serializeActions(record.activeActions()));
     }
 
     private DummyRecord readRecord(ResultSet rs) throws SQLException {
@@ -317,20 +338,33 @@ public final class DummyStorage {
                 rs.getFloat("exp_progress"),
                 rs.getInt("exp_total")
         );
-        return new DummyRecord(uuid, creatorUuid, creatorName, displayName, location, settings, skin, storageContents, armorContents, offhandItem, experience);
+        UUID vehicleUuid = parseNullableUuid(rs.getString("vehicle_uuid"));
+        List<String> activeActions = deserializeActions(rs.getString("active_actions"));
+        return new DummyRecord(uuid, creatorUuid, creatorName, displayName, location, settings, skin, storageContents, armorContents, offhandItem, experience, vehicleUuid, activeActions);
     }
 
     /**
      * 在主线程采集 DummyInstance 的快照，用于异步 upsert。
      * 必须在主线程调用：会读 PlayerInventory。
+     *
+     * @param activeActions 当前正在运行的 repeat 动作命令字符串列表，由
+     *                      {@code DummyActionService.snapshotActions} 生成；
+     *                      传入 {@code null} 将落入空列表。
      */
-    public Snapshot snapshot(DummyInstance dummy, String state) {
-        return new Snapshot(snapshotRecord(dummy), state);
+    public Snapshot snapshot(DummyInstance dummy, String state, List<String> activeActions) {
+        return new Snapshot(snapshotRecord(dummy, activeActions), state);
     }
 
-    private DummyRecord snapshotRecord(DummyInstance dummy) {
+    /** 仅供迁移等无动作状态场景调用。 */
+    public Snapshot snapshot(DummyInstance dummy, String state) {
+        return snapshot(dummy, state, null);
+    }
+
+    private DummyRecord snapshotRecord(DummyInstance dummy, List<String> activeActions) {
         Location location = dummy.location();
         org.bukkit.inventory.PlayerInventory inventory = dummy.player().getInventory();
+        org.bukkit.entity.Entity vehicle = dummy.player().getVehicle();
+        UUID vehicleUuid = vehicle == null ? null : vehicle.getUniqueId();
         return new DummyRecord(
                 dummy.uuid(),
                 dummy.creatorUuid(),
@@ -342,7 +376,9 @@ public final class DummyStorage {
                 copyArray(inventory.getStorageContents()),
                 copyArray(inventory.getArmorContents()),
                 inventory.getItemInOffHand() == null ? null : inventory.getItemInOffHand().clone(),
-                DummyExperience.fromPlayer(dummy.player())
+                DummyExperience.fromPlayer(dummy.player()),
+                vehicleUuid,
+                activeActions == null ? List.of() : activeActions
         );
     }
 
@@ -423,6 +459,32 @@ public final class DummyStorage {
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    /**
+     * Serialize the dummy's repeat action commands to a single TEXT column.
+     * Uses newline as delimiter; each line is the raw command body that
+     * originally followed {@code /dummy <name> actions ...}.
+     */
+    private String serializeActions(List<String> actions) {
+        if (actions == null || actions.isEmpty()) {
+            return null;
+        }
+        return String.join("\n", actions);
+    }
+
+    private List<String> deserializeActions(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        String[] lines = value.split("\n");
+        List<String> result = new ArrayList<>(lines.length);
+        for (String line : lines) {
+            if (!line.isBlank()) {
+                result.add(line);
+            }
+        }
+        return result;
     }
 
     private boolean isEmpty() throws SQLException {

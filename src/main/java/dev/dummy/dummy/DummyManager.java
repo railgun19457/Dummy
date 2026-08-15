@@ -1,6 +1,7 @@
 package dev.dummy.dummy;
 
 import dev.dummy.DummyPlugin;
+import dev.dummy.action.DummyActionService;
 import dev.dummy.i18n.LocalizedException;
 import dev.dummy.nms.DummyHandle;
 import dev.dummy.nms.FakePlayerAdapter;
@@ -39,10 +40,12 @@ public final class DummyManager {
 
     private static final Pattern NAME_PATTERN = Pattern.compile("[A-Za-z0-9_]{3,16}");
     private static final int PROXY_TAB_PROTOCOL_VERSION = 1;
+    private static final int VEHICLE_RESTORE_ATTEMPTS = 100;
 
     private final DummyPlugin plugin;
     private final FakePlayerAdapter adapter;
     private final DummyStorage storage;
+    private DummyActionService actionService;
     private final Map<String, DummyInstance> dummiesByName = new LinkedHashMap<>();
     private final Map<UUID, DummyInstance> dummiesByUuid = new LinkedHashMap<>();
     private final Map<UUID, LoadedChunkTickets> chunkTickets = new LinkedHashMap<>();
@@ -62,6 +65,15 @@ public final class DummyManager {
         if (interval > 0) {
             this.autoSaveTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::flushIfDirty, interval, interval);
         }
+    }
+
+    /**
+     * 注入动作服务，允许持久化时把正在运行的 repeat 动作一起写入。
+     * 必须在 {@link #restoreSavedDummies} 之前调用，否则恢复出来的
+     * 假人不会有动作。
+     */
+    public void setActionService(DummyActionService actionService) {
+        this.actionService = actionService;
     }
 
     /**
@@ -99,7 +111,7 @@ public final class DummyManager {
                     continue;
                 }
                 try {
-                    snapshots.add(storage.snapshot(dummy, "active"));
+                    snapshots.add(snapshotDummy(dummy, "active"));
                 } catch (RuntimeException ex) {
                     plugin.getLogger().warning("Failed to snapshot dummy '" + name + "' for autoSave: " + ex.getMessage());
                 }
@@ -131,7 +143,7 @@ public final class DummyManager {
                     continue;
                 }
                 try {
-                    snapshots.add(storage.snapshot(dummy, "active"));
+                    snapshots.add(snapshotDummy(dummy, "active"));
                 } catch (RuntimeException ex) {
                     plugin.getLogger().warning("Failed to snapshot dummy '" + name + "' for flushNow: " + ex.getMessage());
                 }
@@ -142,6 +154,17 @@ public final class DummyManager {
         } finally {
             flushLock.unlock();
         }
+    }
+
+    /**
+     * 主线程上采集单个假人快照，包含车辆 UUID 与正在运行的 repeat 动作。
+     * 必须在主线程调用：会读 PlayerInventory / getVehicle。
+     */
+    private DummyStorage.Snapshot snapshotDummy(DummyInstance dummy, String state) {
+        List<String> actions = actionService == null
+                ? null
+                : actionService.snapshotActions(dummy.uuid());
+        return storage.snapshot(dummy, state, actions);
     }
 
     public void shutdownStorage() {
@@ -173,6 +196,7 @@ public final class DummyManager {
                     false
             );
             dummy.applyRecord(removed);
+            restoreVehicleAndActions(dummy, removed);
             storage.deleteRemoved(name);
             markDirty(name);
             return dummy;
@@ -188,6 +212,7 @@ public final class DummyManager {
             try {
                 DummyInstance dummy = spawn(Bukkit.getConsoleSender(), record.uuid(), record.creatorUuid(), record.creatorName(), record.name(), record.location(), record.settings(), record.skin(), false, false);
                 dummy.applyRecord(record);
+                restoreVehicleAndActions(dummy, record);
             } catch (RuntimeException ex) {
                 plugin.getLogger().warning("Failed to restore dummy '" + record.name() + "': " + ex.getMessage());
             }
@@ -195,6 +220,44 @@ public final class DummyManager {
         for (DummyInstance dummy : dummiesByName.values()) {
             markDirty(dummy.name());
         }
+    }
+
+    /**
+     * 在 spawn 之后重新挂载车辆 UUID 并恢复持久化的 repeat 动作。
+     * 车辆挂载延后一个 tick 以确保实体追踪已建立。
+     */
+    private void restoreVehicleAndActions(DummyInstance dummy, DummyRecord record) {
+        if (actionService != null && record.activeActions() != null && !record.activeActions().isEmpty()) {
+            actionService.restoreActions(dummy, record.activeActions());
+        }
+        if (record.vehicleUuid() == null) {
+            return;
+        }
+        UUID vehicleUuid = record.vehicleUuid();
+        scheduleVehicleRestore(dummy.uuid(), vehicleUuid, 1);
+    }
+
+    private void scheduleVehicleRestore(UUID dummyUuid, UUID vehicleUuid, int attempt) {
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            DummyInstance current = get(dummyUuid);
+            if (current == null || !current.player().isOnline()) {
+                return;
+            }
+            org.bukkit.entity.Entity vehicle = Bukkit.getEntity(vehicleUuid);
+            if (vehicle != null && vehicle.isValid()) {
+                vehicle.setPersistent(true);
+                if (vehicle.addPassenger(current.player())) {
+                    markDirty(current.name());
+                    plugin.getLogger().info("Restored dummy " + current.name() + " into vehicle " + vehicleUuid);
+                    return;
+                }
+            }
+            if (attempt < VEHICLE_RESTORE_ATTEMPTS) {
+                scheduleVehicleRestore(dummyUuid, vehicleUuid, attempt + 1);
+                return;
+            }
+            plugin.getLogger().warning("Dummy '" + current.name() + "': saved vehicle " + vehicleUuid + " could not be restored after " + VEHICLE_RESTORE_ATTEMPTS + " attempts");
+        }, 1L);
     }
 
     public boolean remove(String name, String reason) {
@@ -278,6 +341,7 @@ public final class DummyManager {
             } else {
                 storage.deleteRemoved(dummy.name());
             }
+            preserveVehicle(dummy);
             broadcastQuit(dummy);
         }
     }
@@ -356,7 +420,6 @@ public final class DummyManager {
             Bukkit.getScheduler().runTask(plugin, () -> restoreResummoned(record));
         }
     }
-
     public boolean contains(String name) {
         return dummiesByName.containsKey(normalize(name));
     }
@@ -463,6 +526,7 @@ public final class DummyManager {
         } else {
             storage.deleteRemoved(dummy.name());
         }
+        preserveVehicle(dummy);
         dummiesByName.remove(normalize(dummy.name()));
         dummiesByUuid.remove(dummy.uuid());
         // 避免 markRemoved/deleteRemoved 之后 dirty flush 又把 row 重新 upsert 回来
@@ -687,9 +751,20 @@ public final class DummyManager {
         if (saveRemoved) {
             storage.markRemoved(dummy);
         }
+        preserveVehicle(dummy);
         sendProxyTabRemove(dummy);
         dummy.handle().remove(Component.text("[Dummy] died"));
         broadcastQuit(dummy);
+    }
+
+    private void preserveVehicle(DummyInstance dummy) {
+        Player player = dummy.player();
+        org.bukkit.entity.Entity vehicle = player.getVehicle();
+        if (vehicle == null) {
+            return;
+        }
+        vehicle.setPersistent(true);
+        player.leaveVehicle();
     }
 
     private boolean isActive(DummyInstance dummy) {
@@ -714,6 +789,7 @@ public final class DummyManager {
             resummoned.applyRecord(record);
             resummoned.handle().applySettings(resummoned.name(), resummoned.settings());
             updateChunkTicket(resummoned);
+            restoreVehicleAndActions(resummoned, record);
             markDirty(record.name());
         } catch (RuntimeException ex) {
             plugin.getLogger().warning("Failed to resummon dummy '" + record.name() + "': " + ex.getMessage());
@@ -722,6 +798,11 @@ public final class DummyManager {
 
     private DummyRecord snapshot(DummyInstance dummy, Location location) {
         PlayerInventory inventory = dummy.player().getInventory();
+        org.bukkit.entity.Entity vehicle = dummy.player().getVehicle();
+        UUID vehicleUuid = vehicle == null ? null : vehicle.getUniqueId();
+        List<String> actions = actionService == null
+                ? List.of()
+                : actionService.snapshotActions(dummy.uuid());
         return new DummyRecord(
                 dummy.uuid(),
                 dummy.creatorUuid(),
@@ -733,7 +814,9 @@ public final class DummyManager {
                 copyItems(inventory.getStorageContents()),
                 copyItems(inventory.getArmorContents()),
                 copyItem(inventory.getItemInOffHand()),
-                dummy.experience()
+                dummy.experience(),
+                vehicleUuid,
+                actions
         );
     }
 
