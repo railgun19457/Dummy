@@ -8,6 +8,7 @@
 - 引入 dirty 标记 + 周期性异步保存（`storage.auto-save-interval-ticks` 默认 600 ticks = 30s），循环动作 (`mine repeat` / `place repeat` / `move repeat`) 不再每个 tick 阻塞主线程。
 - `DummyActionService` 4 处同步 save 和 `DummyGuiListener.onInventoryClose` 改为 `markDirty`，避免动作循环与 GUI 操作连环写盘。
 - `DummyManager.shutdown` 与 `/dummy reload` 改为先同步 `flushNow` 落盘再执行后续逻辑，保证正常关机和重载的数据完整性。
+- 修复假人被 `/kick` 或 NMS 强制断开时未按 `storage.keep-removed-data` 保存数据，导致同名重新召唤无法恢复背包、装备与经验的问题。
 
 ## 0.3.1 - 2026-06-05
 
